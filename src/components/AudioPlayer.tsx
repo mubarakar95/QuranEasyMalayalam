@@ -1,0 +1,417 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Reciter, RECITERS, AyahInfo, HighlightWord, AudioMode } from "@/lib/types";
+import { getAudioUrl, getMalayalamAyahAudioUrl } from "@/lib/quran-api";
+import { fetchChapterSegments, findWordAtTime } from "@/lib/audio-segments";
+
+interface AudioPlayerProps {
+  ayahs: AyahInfo[];
+  reciter: Reciter;
+  onReciterChange: (reciter: Reciter) => void;
+  onPageComplete?: () => void;
+  onVerseChange?: (verseKey: string | null) => void;
+  onWordHighlight?: (word: HighlightWord | null) => void;
+  audioMode?: AudioMode;
+  onAudioModeChange?: (mode: AudioMode) => void;
+}
+
+const audioHandlers = new WeakMap<HTMLAudioElement, {
+  handleEnded: () => void;
+  handleError: () => void;
+  handleTimeUpdate: () => void;
+  handleLoadedMetadata: () => void;
+}>();
+
+function getModeLabel(mode: AudioMode): string {
+  if (mode === "arabic") return "Arabic";
+  if (mode === "malayalam") return "മലയാളം";
+  return "Arabic + മലയാളം";
+}
+
+export default function AudioPlayer({
+  ayahs,
+  reciter,
+  onReciterChange,
+  onPageComplete,
+  onVerseChange,
+  onWordHighlight,
+  audioMode = "arabic",
+  onAudioModeChange,
+}: AudioPlayerProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [playingMalayalam, setPlayingMalayalam] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const onPageCompleteRef = useRef(onPageComplete);
+  const onVerseChangeRef = useRef(onVerseChange);
+  const onWordHighlightRef = useRef(onWordHighlight);
+  const stoppedRef = useRef(false);
+  const volumeRef = useRef(volume);
+  const segmentsRef = useRef<Awaited<ReturnType<typeof fetchChapterSegments>>>([]);
+  const rafRef = useRef<number>(0);
+  const currentWordIndexRef = useRef<number | null>(null);
+  const isPlayingRef = useRef(isPlaying);
+  const currentAyahIndexRef = useRef(currentAyahIndex);
+  const ayahsRef = useRef(ayahs);
+  const reciterRef = useRef(reciter);
+  const audioModeRef = useRef(audioMode);
+  const playingMalayalamRef = useRef(playingMalayalam);
+
+  useEffect(() => { volumeRef.current = volume; }, [volume]);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { currentAyahIndexRef.current = currentAyahIndex; }, [currentAyahIndex]);
+  useEffect(() => { ayahsRef.current = ayahs; }, [ayahs]);
+  useEffect(() => { reciterRef.current = reciter; }, [reciter]);
+  useEffect(() => { audioModeRef.current = audioMode; }, [audioMode]);
+  useEffect(() => { playingMalayalamRef.current = playingMalayalam; }, [playingMalayalam]);
+  useEffect(() => { onPageCompleteRef.current = onPageComplete; }, [onPageComplete]);
+  useEffect(() => { onVerseChangeRef.current = onVerseChange; }, [onVerseChange]);
+  useEffect(() => { onWordHighlightRef.current = onWordHighlight; }, [onWordHighlight]);
+
+  useEffect(() => {
+    if (ayahs.length === 0) return;
+    const ayah = ayahs[currentAyahIndex];
+    if (ayah) {
+      onVerseChangeRef.current?.(`${ayah.surah.number}:${ayah.numberInSurah}`);
+    }
+  }, [currentAyahIndex, ayahs]);
+
+  useEffect(() => {
+    const shouldFetchSegments = audioMode === "arabic" || audioMode === "both";
+    if (!shouldFetchSegments || !reciter.quranComId || ayahs.length === 0) {
+      segmentsRef.current = [];
+      return;
+    }
+
+    let cancelled = false;
+    const surahNumbers = new Set(ayahs.map((a) => a.surah.number));
+
+    Promise.all(
+      [...surahNumbers].map((sn) => fetchChapterSegments(reciter.quranComId!, sn))
+    )
+      .then((results) => {
+        if (!cancelled) {
+          segmentsRef.current = results.flat();
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          segmentsRef.current = [];
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [reciter.quranComId, ayahs, audioMode]);
+
+  const trackWordFn = () => {
+    const audio = audioRef.current;
+    if (!audio || audio.paused) return;
+
+    const ayah = ayahsRef.current[currentAyahIndexRef.current];
+    if (!ayah) return;
+    const shouldTrack = audioModeRef.current === "arabic" || (audioModeRef.current === "both" && !playingMalayalamRef.current);
+    if (!shouldTrack || !reciterRef.current.quranComId) return;
+
+    const verseKey = `${ayah.surah.number}:${ayah.numberInSurah}`;
+    const currentTimeMs = audio.currentTime * 1000;
+    const wordIndex = findWordAtTime(segmentsRef.current, verseKey, currentTimeMs);
+
+    if (wordIndex !== currentWordIndexRef.current) {
+      currentWordIndexRef.current = wordIndex;
+      if (wordIndex !== null) {
+        onWordHighlightRef.current?.({ verseKey, wordIndex });
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(trackWordFn);
+  };
+
+  const cleanupAudio = useCallback((audio: HTMLAudioElement) => {
+    audio.pause();
+    const handlers = audioHandlers.get(audio);
+    if (handlers) {
+      audio.removeEventListener("ended", handlers.handleEnded);
+      audio.removeEventListener("error", handlers.handleError);
+      audio.removeEventListener("timeupdate", handlers.handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handlers.handleLoadedMetadata);
+      audioHandlers.delete(audio);
+    }
+  }, []);
+
+  const playNextAyahOrMalayalam = useCallback(() => {
+    if (stoppedRef.current) return;
+    cancelAnimationFrame(rafRef.current);
+    onWordHighlightRef.current?.(null);
+    currentWordIndexRef.current = null;
+
+    const mode = audioModeRef.current;
+
+    if (mode === "both" && !playingMalayalamRef.current) {
+      setPlayingMalayalam(true);
+      return;
+    }
+
+    if (playingMalayalamRef.current) {
+      setPlayingMalayalam(false);
+    }
+
+    if (currentAyahIndexRef.current >= ayahsRef.current.length - 1) {
+      setIsPlaying(false);
+      setCurrentAyahIndex(0);
+      setCurrentTime(0);
+      setDuration(0);
+      onPageCompleteRef.current?.();
+      onVerseChangeRef.current?.(null);
+    } else {
+      setCurrentAyahIndex((prev) => prev + 1);
+    }
+  }, [cleanupAudio]);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        cleanupAudio(audioRef.current);
+        audioRef.current = null;
+      }
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [cleanupAudio]);
+
+  useEffect(() => {
+    if (!isPlaying || ayahs.length === 0) return;
+    if (currentAyahIndex >= ayahs.length) return;
+
+    if (audioRef.current) {
+      cleanupAudio(audioRef.current);
+      audioRef.current = null;
+    }
+    cancelAnimationFrame(rafRef.current);
+
+    stoppedRef.current = false;
+    const ayah = ayahs[currentAyahIndex];
+    const mode = audioMode;
+
+    let url: string;
+    if (mode === "malayalam") {
+      url = getMalayalamAyahAudioUrl(ayah.surah.number, ayah.numberInSurah);
+    } else if (mode === "both" && playingMalayalam) {
+      url = getMalayalamAyahAudioUrl(ayah.surah.number, ayah.numberInSurah);
+    } else {
+      url = getAudioUrl(reciter.id, ayah.number);
+    }
+
+    const audio = new Audio(url);
+    audio.volume = volumeRef.current;
+    audioRef.current = audio;
+
+    if (!playingMalayalam && mode !== "malayalam") {
+      currentWordIndexRef.current = null;
+    }
+
+    const handleEnded = () => {
+      playNextAyahOrMalayalam();
+    };
+
+    const handleError = () => {
+      cancelAnimationFrame(rafRef.current);
+      setIsPlaying(false);
+    };
+
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+      const shouldTrack = (mode === "arabic" || (mode === "both" && !playingMalayalam)) && reciter.quranComId;
+      if (shouldTrack) {
+        rafRef.current = requestAnimationFrame(trackWordFn);
+      }
+    };
+
+    audioHandlers.set(audio, { handleEnded, handleError, handleTimeUpdate, handleLoadedMetadata });
+
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+
+    audio.play().catch(() => {
+      setIsPlaying(false);
+    });
+
+    return () => {
+      stoppedRef.current = true;
+      cleanupAudio(audio);
+      cancelAnimationFrame(rafRef.current);
+      if (audioRef.current === audio) {
+        audioRef.current = null;
+      }
+    };
+  }, [isPlaying, currentAyahIndex, ayahs, reciter.id, audioMode, playingMalayalam, cleanupAudio, playNextAyahOrMalayalam]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  const togglePlay = useCallback(() => {
+    setIsPlaying((prev) => {
+      if (!prev) {
+        return true;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        cancelAnimationFrame(rafRef.current);
+      }
+      return false;
+    });
+  }, []);
+
+  const stop = useCallback(() => {
+    if (audioRef.current) {
+      cleanupAudio(audioRef.current);
+      audioRef.current = null;
+    }
+    cancelAnimationFrame(rafRef.current);
+    setIsPlaying(false);
+    setCurrentAyahIndex(0);
+    setCurrentTime(0);
+    setDuration(0);
+    setPlayingMalayalam(false);
+    currentWordIndexRef.current = null;
+    onWordHighlightRef.current?.(null);
+  }, [cleanupAudio]);
+
+  const skipAyah = useCallback(
+    (direction: 1 | -1) => {
+      setPlayingMalayalam(false);
+      setCurrentAyahIndex((prev) => {
+        const next = prev + direction;
+        if (next < 0 || next >= ayahsRef.current.length) return prev;
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setVolume(parseFloat(e.target.value));
+  };
+
+  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="audio-player">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <select
+            value={audioMode}
+            onChange={(e) => {
+              const newMode = e.target.value as AudioMode;
+              stop();
+              onAudioModeChange?.(newMode);
+            }}
+            className="reciter-select"
+            aria-label="Audio mode"
+          >
+            <option value="arabic">Arabic</option>
+            <option value="malayalam">മലയാളം</option>
+            <option value="both">Arabic + മലയാളം</option>
+          </select>
+          {audioMode !== "malayalam" && (
+            <select
+              value={reciter.id}
+              onChange={(e) => {
+                const selected = RECITERS.find((r) => r.id === e.target.value);
+                if (selected) {
+                  stop();
+                  onReciterChange(selected);
+                }
+              }}
+              className="reciter-select"
+              aria-label="Select reciter"
+            >
+              {RECITERS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <span className="text-[10px] text-[var(--muted)] tabular-nums">
+          {isPlaying ? (
+            <>
+              {currentAyahIndex + 1} / {ayahs.length}
+              {audioMode === "both" && (
+                <span className="ml-1 text-[9px]">
+                  {playingMalayalam ? "(മലയാളം)" : "(Arabic)"}
+                </span>
+              )}
+            </>
+          ) : (
+            getModeLabel(audioMode)
+          )}
+        </span>
+      </div>
+
+      <div className="progress-bar-container">
+        <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
+      </div>
+
+      <div className="flex items-center justify-center gap-1 mt-1.5">
+        <button onClick={() => skipAyah(-1)} disabled={currentAyahIndex === 0} className="player-btn" aria-label="Previous ayah">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 16.811c0 .864-.933 1.406-1.683.947l-7.108-4.061a1.125 1.125 0 0 1 0-1.95l7.108-4.061A1.125 1.125 0 0 1 21 8.689v8.122ZM11.25 16.811c0 .864-.933 1.406-1.683.947l-7.108-4.061a1.125 1.125 0 0 1 0-1.95l7.108-4.061a1.125 1.125 0 0 1 1.683.947v8.122Z" />
+          </svg>
+        </button>
+
+        <button onClick={togglePlay} className="player-btn-play" aria-label={isPlaying ? "Pause" : "Play"}>
+          {isPlaying ? (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+            </svg>
+          )}
+        </button>
+
+        <button onClick={() => skipAyah(1)} disabled={currentAyahIndex >= ayahs.length - 1} className="player-btn" aria-label="Next ayah">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.189c0-.864.933-1.406 1.683-.947l7.108 4.061a1.125 1.125 0 0 1 0 1.95l-7.108 4.061A1.125 1.125 0 0 1 3 16.311V7.189ZM12.75 7.189c0-.864.933-1.406 1.683-.947l7.108 4.061a1.125 1.125 0 0 1 0 1.95l-7.108 4.061a1.125 1.125 0 0 1-1.683-.986V7.189Z" />
+          </svg>
+        </button>
+
+        <button onClick={stop} className="player-btn" aria-label="Stop">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+            <path fillRule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clipRule="evenodd" />
+          </svg>
+        </button>
+
+        <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-[var(--border)]">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 text-[var(--muted)]">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+          </svg>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={volume}
+            onChange={handleVolumeChange}
+            className="volume-slider"
+            aria-label="Volume"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
