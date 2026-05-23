@@ -248,17 +248,17 @@ body {
   direction: rtl;
   text-align: center;
   animation: fade-in 0.2s ease-out;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
-
-
 
 .mushaf-line {
   display: flex;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   line-height: 2.8;
-  gap:0;
+  gap: 0;
 }
 
 .mushaf-word {
@@ -545,14 +545,64 @@ body {
   }
 
   .mushaf-spread .mushaf-word {
-    font-size: 1.75rem;
+    font-size: 1.1rem;
   }
 
   .mushaf-spread .mushaf-end-marker {
-    font-size: 1.25rem;
+    font-size: 0.85rem;
+  }
+
+  .mushaf-spread .mushaf-surah-header {
+    font-size: 1.1rem;
+  }
+
+  .mushaf-spread .mushaf-bsml {
+    font-size: 1.1rem;
   }
 
   .mushaf-spread .mushaf-line {
-    line-height: 2.8;
+    line-height: 2.2;
+  }
+
+  .mushaf-spread .mushaf-word.wbw-enabled {
+    padding-bottom: 0.9rem;
+  }
+
+  .mushaf-spread .wbw-ml {
+    font-size: 0.35rem;
+    max-width: 2.5rem;
+  }
+
+  .mushaf-container {
+    padding: 1rem 0.5rem;
+  }
+
+  .mushaf-word {
+    font-size: 1.25rem;
+  }
+
+  .mushaf-end-marker {
+    font-size: 0.95rem;
+  }
+
+  .mushaf-surah-header {
+    font-size: 1.25rem;
+  }
+
+  .mushaf-bsml {
+    font-size: 1.25rem;
+  }
+
+  .mushaf-line {
+    line-height: 2.2;
+  }
+
+  .mushaf-word.wbw-enabled {
+    padding-bottom: 1.1rem;
+  }
+
+  .wbw-ml {
+    font-size: 0.4rem;
+    max-width: 3.5rem;
   }
 }
