@@ -9,22 +9,6 @@ import { Reciter, RECITERS, TOTAL_PAGES, HighlightWord, AudioMode } from "@/lib/
 import { fetchPage, fetchTranslationPage } from "@/lib/quran-api";
 import { PageData as ApiPageData } from "@/lib/types";
 
-function getSpreadPages(page: number, total: number): { left: number | null; right: number } {
-  if (page <= 2) return { left: null, right: page };
-
-  if (page % 2 === 0) {
-    const left = page;
-    const right = page - 1;
-    if (left <= total) return { left, right };
-    return { left: null, right: page };
-  }
-
-  const left = page + 1;
-  const right = page;
-  if (left <= total) return { left, right };
-  return { left: null, right: page };
-}
-
 export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -96,9 +80,7 @@ export default function Home() {
 
     let cancelled = false;
 
-    const { left, right } = getSpreadPages(currentPage, TOTAL_PAGES);
-
-    fetchTranslationPage(right)
+    fetchTranslationPage(currentPage)
       .then((map) => {
         if (!cancelled) setTranslationMap(map);
       })
@@ -106,8 +88,8 @@ export default function Home() {
         if (!cancelled) setTranslationMap(null);
       });
 
-    if (twoPageMode && left !== null) {
-      fetchTranslationPage(left)
+    if (twoPageMode && currentPage + 1 <= TOTAL_PAGES) {
+      fetchTranslationPage(currentPage + 1)
         .then((map) => {
           if (!cancelled) setTranslationMapRight(map);
         })
@@ -299,15 +281,14 @@ export default function Home() {
           </div>
         )}
 
-        {twoPageMode ? (() => {
-          const { left, right } = getSpreadPages(currentPage, TOTAL_PAGES);
-          return (
-            <div className="mushaf-spread">
-              <div className="mushaf-spread-pages">
-                {left !== null && (
+        {twoPageMode ? (
+          <div className="mushaf-spread">
+            <div className="mushaf-spread-pages">
+              {currentPage + 1 <= TOTAL_PAGES && (
+                <>
                   <div className="mushaf-spread-page">
                     <MushafPage
-                      currentPage={left}
+                      currentPage={currentPage + 1}
                       highlightVerseKey={highlightVerseKey}
                       highlightWord={highlightWord}
                       onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
@@ -315,22 +296,22 @@ export default function Home() {
                       translationMap={translationMapRight}
                     />
                   </div>
-                )}
-                {left !== null && <div className="mushaf-spine-line" />}
-                <div className="mushaf-spread-page">
-                  <MushafPage
-                    currentPage={right}
-                    highlightVerseKey={highlightVerseKey}
-                    highlightWord={highlightWord}
-                    onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-                    showTranslation={showTranslation}
-                    translationMap={translationMap}
-                  />
-                </div>
+                  <div className="mushaf-spine-line" />
+                </>
+              )}
+              <div className="mushaf-spread-page">
+                <MushafPage
+                  currentPage={currentPage}
+                  highlightVerseKey={highlightVerseKey}
+                  highlightWord={highlightWord}
+                  onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
+                  showTranslation={showTranslation}
+                  translationMap={translationMap}
+                />
               </div>
             </div>
-          );
-        })() : (
+          </div>
+        ) : (
           <MushafPage
             currentPage={currentPage}
             highlightVerseKey={highlightVerseKey}
