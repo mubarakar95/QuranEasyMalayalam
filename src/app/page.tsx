@@ -39,7 +39,10 @@ export default function Home() {
     const savedWordByWord = localStorage.getItem("quran-show-word-by-word");
     if (savedWordByWord === "true") setShowWordByWord(true);
     const savedTwoPage = localStorage.getItem("quran-two-page-mode");
-    if (savedTwoPage === "true") setTwoPageMode(true);
+    if (savedTwoPage === "true") {
+      setTwoPageMode(true);
+      if (savedPage % 2 === 0) setCurrentPage(savedPage - 1);
+    }
     setHydrated(true);
   }, []);
 
@@ -127,15 +130,18 @@ export default function Home() {
     setTwoPageMode((prev) => {
       const next = !prev;
       localStorage.setItem("quran-two-page-mode", next.toString());
+      if (next) {
+        setCurrentPage((p) => (p % 2 === 0 ? p - 1 : p));
+      }
       return next;
     });
   }, []);
 
   const goToPage = useCallback((page: number) => {
     if (page >= 1 && page <= TOTAL_PAGES) {
-      setCurrentPage(page);
+      setCurrentPage(twoPageMode ? (page % 2 === 0 ? page - 1 : page) : page);
     }
-  }, []);
+  }, [twoPageMode]);
 
   const goNext = useCallback(() => {
     setCurrentPage((prev) => {

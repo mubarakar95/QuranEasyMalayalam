@@ -35,6 +35,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
   const [wbwData, setWbwData] = useState<Record<string, string[]> | null>(null);
   const [wordPopover, setWordPopover] = useState<{ text: string; verseKey: string; el: Element } | null>(null);
   const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const ttsAudioRef = useRef<HTMLAudioElement>(null);
 
   const dismissPopover = useCallback(() => {
     setWordPopover(null);
@@ -45,7 +46,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     if (!wordPopover) return;
     const handler = (e: Event) => {
       const target = e.target as Element;
-      if (!target.closest?.(".mushaf-word")) dismissPopover();
+      if (!target.closest?.(".mushaf-word") && !target.closest?.(".word-popover")) dismissPopover();
     };
     const scrollHandler = () => dismissPopover();
     document.addEventListener("click", handler, true);
@@ -129,12 +130,29 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     return result;
   }, [showWordByWord, wbwData, lines]);
 
-  const verseLastLine = useMemo(() => {
-    const map = new Map<string, number>();
+  const verseWordsOrder = useMemo(() => {
+    const order: string[] = [];
+    const seen = new Set<string>();
     for (const line of lines) {
       for (const word of line.words) {
-        if (word.type === "word" && word.verse_key) {
-          map.set(word.verse_key, line.line);
+        if (word.type === "word" && word.verse_key && !seen.has(word.verse_key)) {
+          seen.add(word.verse_key);
+          order.push(word.verse_key);
+        }
+      }
+    }
+    return order;
+  }, [lines]);
+
+  const verseWordsMap = useMemo(() => {
+    const map = new Map<string, PageLine["words"]>();
+    for (const line of lines) {
+      for (const word of line.words) {
+        if (word.verse_key) {
+          if (!map.has(word.verse_key)) {
+            map.set(word.verse_key, []);
+          }
+          map.get(word.verse_key)!.push(word);
         }
       }
     }
@@ -160,31 +178,111 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     );
   }
 
+    const showAyahByAyah = showTranslation && !showWordByWord && translationMap && verseWordsOrder.length > 0;
+
+    const popoverEl = wordPopover && (
+      <div className="word-popover">
+        <span className="word-popover-ml">{wordPopover.text}</span>
+        <button
+          className="word-popover-speak"
+          onClick={(e) => {
+            e.stopPropagation();
+            const text = wordPopover.text;
+            if (!text || !ttsAudioRef.current) return;
+            ttsAudioRef.current.src = "/api/tts?text=" + encodeURIComponent(text);
+            ttsAudioRef.current.volume = 1;
+            ttsAudioRef.current.play().catch(() => {});
+          }}
+          aria-label="Speak meaning"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+          </svg>
+        </button>
+        <audio ref={ttsAudioRef} preload="none" />
+      </div>
+    );
+
+    if (showAyahByAyah) {
+      return (
+        <div className="mushaf-container">
+          {popoverEl}
+          {verseWordsOrder.map((vk) => {
+            const words = verseWordsMap.get(vk) || [];
+            const translation = translationMap.get(vk);
+            const isHighlighted = highlightVerseKey === vk;
+
+            return (
+              <div
+                key={vk}
+                className={`verse-block ${isHighlighted ? "verse-block-highlighted" : ""}`}
+                onClick={() => onVerseClick?.(vk)}
+              >
+                <div className="verse-block-arabic">
+                  {words.map((w) => {
+                    const isWordHighlighted = highlightedWordCode !== null && w.code === highlightedWordCode && w.verse_key === vk;
+                    const mlTooltip = wbwData && w.type === "word" && w.verse_key
+                      ? (wbwData[w.verse_key]?.[w.position - 1] ?? null)
+                      : null;
+
+                    if (w.type === "end") {
+                      return (
+                        <span key={w.code} className={`mushaf-end-marker ${isHighlighted ? "highlighted" : ""}`} style={{ fontFamily: `"${w.font}", serif` }}>
+                          {w.char}
+                        </span>
+                      );
+                    }
+                    if (w.type === "surah_header") {
+                      return (
+                        <span key={w.code} className="mushaf-surah-header" style={{ fontFamily: `"${w.font}", serif` }}>
+                          {w.char}
+                        </span>
+                      );
+                    }
+                    if (w.type === "bismillah") {
+                      return (
+                        <span key={w.code} className="mushaf-bsml" style={{ fontFamily: `"${w.font}", serif` }}>
+                          {w.char}
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <span
+                        key={w.code}
+                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""}`}
+                        style={{ fontFamily: `"${w.font}", serif` }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onVerseClick?.(vk);
+                          if (mlTooltip) {
+                            setWordPopover({ text: mlTooltip, verseKey: vk, el: e.currentTarget });
+                          }
+                        }}
+                        title={mlTooltip ? `${w.text} — ${mlTooltip}` : w.text}
+                      >
+                        {w.char}
+                      </span>
+                    );
+                  })}
+                </div>
+                {translation && (
+                  <div className="verse-block-translation" dir="ltr">
+                    <span className="verse-block-verse-num">{vk.replace(":", ":")}</span>
+                    {translation}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
     return (
     <div className="mushaf-container">
-      {wordPopover && (
-        <div className="word-popover">
-          <span className="word-popover-arabic">{wordPopover.verseKey}</span>
-          <span className="word-popover-ml">{wordPopover.text}</span>
-        </div>
-      )}
+      {popoverEl}
       {lines.map((line) => {
-        const translationLines: { verseKey: string; text: string }[] = [];
-        if (showTranslation && !showWordByWord && translationMap) {
-          const seen = new Set<string>();
-          for (const word of line.words) {
-            if (word.type === "end" && word.verse_key && !seen.has(word.verse_key)) {
-              seen.add(word.verse_key);
-              if (verseLastLine.get(word.verse_key) === line.line) {
-                const text = translationMap.get(word.verse_key);
-                if (text) {
-                  translationLines.push({ verseKey: word.verse_key, text });
-                }
-              }
-            }
-          }
-        }
-
         return (
           <div key={line.line}>
             <div className={`mushaf-line ${showWordByWord && wordByWordMap.size > 0 ? "wbw-active" : ""}`}>
@@ -247,11 +345,6 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                 );
               })}
             </div>
-            {translationLines.map((tl) => (
-              <div key={tl.verseKey} className="translation-line" dir="ltr">
-                {tl.text}
-              </div>
-            ))}
           </div>
         );
       })}

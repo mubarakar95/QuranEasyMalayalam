@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Reciter, RECITERS, AyahInfo, HighlightWord, AudioMode } from "@/lib/types";
+import { Reciter, RECITERS, AyahInfo, HighlightWord, AudioMode, RepeatMode } from "@/lib/types";
 import { getAudioUrl, getMalayalamAyahAudioUrl } from "@/lib/quran-api";
 import { fetchChapterSegments, findWordAtTime } from "@/lib/audio-segments";
 
@@ -27,7 +27,7 @@ const audioHandlers = new WeakMap<HTMLAudioElement, {
 function getModeLabel(mode: AudioMode): string {
   if (mode === "arabic") return "Arabic";
   if (mode === "malayalam") return "മലയാളം";
-  return "Arabic + മലയാളം";
+  return "മലയാളം + Arabic";
 }
 
 export default function AudioPlayer({
@@ -47,6 +47,8 @@ export default function AudioPlayer({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [playingMalayalam, setPlayingMalayalam] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>("none");
+  const [playLoop, setPlayLoop] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const onPageCompleteRef = useRef(onPageComplete);
   const onVerseChangeRef = useRef(onVerseChange);
@@ -62,6 +64,7 @@ export default function AudioPlayer({
   const reciterRef = useRef(reciter);
   const audioModeRef = useRef(audioMode);
   const playingMalayalamRef = useRef(playingMalayalam);
+  const repeatModeRef = useRef(repeatMode);
   const highlightVerseKeyRef = useRef(highlightVerseKey);
 
   useEffect(() => { volumeRef.current = volume; }, [volume]);
@@ -71,6 +74,7 @@ export default function AudioPlayer({
   useEffect(() => { reciterRef.current = reciter; }, [reciter]);
   useEffect(() => { audioModeRef.current = audioMode; }, [audioMode]);
   useEffect(() => { playingMalayalamRef.current = playingMalayalam; }, [playingMalayalam]);
+  useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
   useEffect(() => { highlightVerseKeyRef.current = highlightVerseKey; }, [highlightVerseKey]);
   useEffect(() => { onPageCompleteRef.current = onPageComplete; }, [onPageComplete]);
   useEffect(() => { onVerseChangeRef.current = onVerseChange; }, [onVerseChange]);
@@ -153,9 +157,10 @@ export default function AudioPlayer({
     currentWordIndexRef.current = null;
 
     const mode = audioModeRef.current;
+    const repeat = repeatModeRef.current;
 
-    if (mode === "both" && !playingMalayalamRef.current) {
-      setPlayingMalayalam(true);
+    if (mode === "both" && playingMalayalamRef.current) {
+      setPlayingMalayalam(false);
       return;
     }
 
@@ -163,15 +168,35 @@ export default function AudioPlayer({
       setPlayingMalayalam(false);
     }
 
-    if (currentAyahIndexRef.current >= ayahsRef.current.length - 1) {
+    const isLastAyah = currentAyahIndexRef.current >= ayahsRef.current.length - 1;
+
+    if (repeat === "ayah") {
+      setPlayingMalayalam(mode === "both");
+      setPlayLoop((l) => l + 1);
+      return;
+    }
+
+    if (isLastAyah) {
+      if (repeat === "page") {
+        setCurrentAyahIndex(0);
+        setCurrentTime(0);
+        setDuration(0);
+        if (mode === "both") setPlayingMalayalam(true);
+        onVerseChangeRef.current?.(null);
+        return;
+      }
       setIsPlaying(false);
       setCurrentAyahIndex(0);
       setCurrentTime(0);
       setDuration(0);
+      setPlayingMalayalam(false);
       onPageCompleteRef.current?.();
       onVerseChangeRef.current?.(null);
     } else {
       setCurrentAyahIndex((prev) => prev + 1);
+      if (mode === "both") {
+        setPlayingMalayalam(true);
+      }
     }
   }, [cleanupAudio]);
 
@@ -256,7 +281,7 @@ export default function AudioPlayer({
         audioRef.current = null;
       }
     };
-  }, [isPlaying, currentAyahIndex, ayahs, reciter.id, audioMode, playingMalayalam, cleanupAudio, playNextAyahOrMalayalam]);
+  }, [isPlaying, currentAyahIndex, ayahs, reciter.id, audioMode, playingMalayalam, playLoop, cleanupAudio, playNextAyahOrMalayalam]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -273,6 +298,9 @@ export default function AudioPlayer({
             (a) => `${a.surah.number}:${a.numberInSurah}` === hk
           );
           if (idx !== -1) setCurrentAyahIndex(idx);
+        }
+        if (audioModeRef.current === "both") {
+          setPlayingMalayalam(true);
         }
         return true;
       }
@@ -295,13 +323,15 @@ export default function AudioPlayer({
     setCurrentTime(0);
     setDuration(0);
     setPlayingMalayalam(false);
+    setPlayLoop(0);
     currentWordIndexRef.current = null;
     onWordHighlightRef.current?.(null);
   }, [cleanupAudio]);
 
   const skipAyah = useCallback(
     (direction: 1 | -1) => {
-      setPlayingMalayalam(false);
+      setPlayingMalayalam(audioModeRef.current === "both");
+      setPlayLoop(0);
       setCurrentAyahIndex((prev) => {
         const next = prev + direction;
         if (next < 0 || next >= ayahsRef.current.length) return prev;
@@ -333,7 +363,7 @@ export default function AudioPlayer({
           >
             <option value="arabic">Arabic</option>
             <option value="malayalam">മലയാളം</option>
-            <option value="both">Arabic + മലയാളം</option>
+            <option value="both">മലയാളം + Arabic</option>
           </select>
           {audioMode !== "malayalam" && (
             <select
@@ -405,6 +435,22 @@ export default function AudioPlayer({
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
             <path fillRule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clipRule="evenodd" />
           </svg>
+        </button>
+
+        <button
+          onClick={() => setRepeatMode((r) => r === "none" ? "ayah" : r === "ayah" ? "page" : "none")}
+          className={`player-btn relative ${repeatMode !== "none" ? "bg-[var(--foreground)] text-[var(--background)] rounded-sm" : ""}`}
+          aria-label={`Repeat: ${repeatMode === "none" ? "off" : repeatMode === "ayah" ? "ayah" : "page"}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3-3 3" />
+          </svg>
+          {repeatMode === "ayah" && (
+            <span className="absolute -top-0.5 -right-0.5 text-[7px] font-bold leading-none">1</span>
+          )}
+          {repeatMode === "page" && (
+            <span className="absolute -top-0.5 -right-0.5 text-[7px] font-bold leading-none">↺</span>
+          )}
         </button>
 
         <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-[var(--border)]">

@@ -57,6 +57,7 @@ export interface HighlightWord {
 export const MALAYALAM_EDITION = "ml.karakunnu";
 
 export type AudioMode = "arabic" | "malayalam" | "both";
+export type RepeatMode = "none" | "ayah" | "page";
 
 export const TOTAL_PAGES = 604;
 
