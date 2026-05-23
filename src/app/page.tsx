@@ -284,17 +284,6 @@ export default function Home() {
         {twoPageMode ? (
           <div className="mushaf-spread">
             <div className="mushaf-spread-pages">
-              <div className="mushaf-spread-page">
-                <MushafPage
-                  currentPage={currentPage}
-                  highlightVerseKey={highlightVerseKey}
-                  highlightWord={highlightWord}
-                  onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-                  showTranslation={showTranslation}
-                  translationMap={translationMap}
-                />
-              </div>
-              <div className="mushaf-spine-line" />
               {currentPage + 1 <= TOTAL_PAGES && (
                 <div className="mushaf-spread-page">
                   <MushafPage
@@ -307,6 +296,17 @@ export default function Home() {
                   />
                 </div>
               )}
+              <div className="mushaf-spine-line" />
+              <div className="mushaf-spread-page">
+                <MushafPage
+                  currentPage={currentPage}
+                  highlightVerseKey={highlightVerseKey}
+                  highlightWord={highlightWord}
+                  onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
+                  showTranslation={showTranslation}
+                  translationMap={translationMap}
+                />
+              </div>
             </div>
           </div>
         ) : (
