@@ -105,6 +105,18 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     return result;
   }, [showWordByWord, wbwData, lines]);
 
+  const verseLastLine = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const line of lines) {
+      for (const word of line.words) {
+        if (word.type === "word" && word.verse_key) {
+          map.set(word.verse_key, line.line);
+        }
+      }
+    }
+    return map;
+  }, [lines]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -127,13 +139,18 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
   return (
     <div className="mushaf-container">
       {lines.map((line) => {
-        const endMarkersInLine = line.words.filter((w) => w.type === "end" && w.verse_key);
         const translationLines: { verseKey: string; text: string }[] = [];
-        if (showTranslation && !showWordByWord && translationMap && endMarkersInLine.length > 0) {
-          for (const em of endMarkersInLine) {
-            const text = translationMap.get(em.verse_key!);
-            if (text) {
-              translationLines.push({ verseKey: em.verse_key!, text });
+        if (showTranslation && !showWordByWord && translationMap) {
+          const seen = new Set<string>();
+          for (const word of line.words) {
+            if (word.type === "end" && word.verse_key && !seen.has(word.verse_key)) {
+              seen.add(word.verse_key);
+              if (verseLastLine.get(word.verse_key) === line.line) {
+                const text = translationMap.get(word.verse_key);
+                if (text) {
+                  translationLines.push({ verseKey: word.verse_key, text });
+                }
+              }
             }
           }
         }
