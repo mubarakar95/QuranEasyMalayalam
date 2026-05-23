@@ -335,6 +335,7 @@ export default function Home() {
           onWordHighlight={(word) => setHighlightWord(word)}
           audioMode={audioMode}
           onAudioModeChange={setAudioMode}
+          highlightVerseKey={highlightVerseKey}
         />
       </div>
 

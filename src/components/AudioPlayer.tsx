@@ -14,6 +14,7 @@ interface AudioPlayerProps {
   onWordHighlight?: (word: HighlightWord | null) => void;
   audioMode?: AudioMode;
   onAudioModeChange?: (mode: AudioMode) => void;
+  highlightVerseKey?: string | null;
 }
 
 const audioHandlers = new WeakMap<HTMLAudioElement, {
@@ -38,6 +39,7 @@ export default function AudioPlayer({
   onWordHighlight,
   audioMode = "arabic",
   onAudioModeChange,
+  highlightVerseKey,
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
@@ -60,6 +62,7 @@ export default function AudioPlayer({
   const reciterRef = useRef(reciter);
   const audioModeRef = useRef(audioMode);
   const playingMalayalamRef = useRef(playingMalayalam);
+  const highlightVerseKeyRef = useRef(highlightVerseKey);
 
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
@@ -68,6 +71,7 @@ export default function AudioPlayer({
   useEffect(() => { reciterRef.current = reciter; }, [reciter]);
   useEffect(() => { audioModeRef.current = audioMode; }, [audioMode]);
   useEffect(() => { playingMalayalamRef.current = playingMalayalam; }, [playingMalayalam]);
+  useEffect(() => { highlightVerseKeyRef.current = highlightVerseKey; }, [highlightVerseKey]);
   useEffect(() => { onPageCompleteRef.current = onPageComplete; }, [onPageComplete]);
   useEffect(() => { onVerseChangeRef.current = onVerseChange; }, [onVerseChange]);
   useEffect(() => { onWordHighlightRef.current = onWordHighlight; }, [onWordHighlight]);
@@ -263,6 +267,13 @@ export default function AudioPlayer({
   const togglePlay = useCallback(() => {
     setIsPlaying((prev) => {
       if (!prev) {
+        const hk = highlightVerseKeyRef.current;
+        if (hk) {
+          const idx = ayahsRef.current.findIndex(
+            (a) => `${a.surah.number}:${a.numberInSurah}` === hk
+          );
+          if (idx !== -1) setCurrentAyahIndex(idx);
+        }
         return true;
       }
       if (audioRef.current) {

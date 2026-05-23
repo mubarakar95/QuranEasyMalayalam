@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { PageLine, fetchPageData, loadPageFont } from "@/lib/qcf4";
 import { HighlightWord } from "@/lib/types";
 import { fetchMalayalamWBW } from "@/lib/malayalam-wbw";
@@ -33,6 +33,30 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wbwData, setWbwData] = useState<Record<string, string[]> | null>(null);
+  const [wordPopover, setWordPopover] = useState<{ text: string; verseKey: string; el: Element } | null>(null);
+  const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const dismissPopover = useCallback(() => {
+    setWordPopover(null);
+    clearTimeout(popoverTimeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!wordPopover) return;
+    const handler = (e: Event) => {
+      const target = e.target as Element;
+      if (!target.closest?.(".mushaf-word")) dismissPopover();
+    };
+    const scrollHandler = () => dismissPopover();
+    document.addEventListener("click", handler, true);
+    document.addEventListener("scroll", scrollHandler, true);
+    popoverTimeoutRef.current = setTimeout(dismissPopover, 4000);
+    return () => {
+      document.removeEventListener("click", handler, true);
+      document.removeEventListener("scroll", scrollHandler, true);
+      clearTimeout(popoverTimeoutRef.current);
+    };
+  }, [wordPopover, dismissPopover]);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,8 +160,14 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     );
   }
 
-  return (
+    return (
     <div className="mushaf-container">
+      {wordPopover && (
+        <div className="word-popover">
+          <span className="word-popover-arabic">{wordPopover.verseKey}</span>
+          <span className="word-popover-ml">{wordPopover.text}</span>
+        </div>
+      )}
       {lines.map((line) => {
         const translationLines: { verseKey: string; text: string }[] = [];
         if (showTranslation && !showWordByWord && translationMap) {
@@ -201,7 +231,14 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                     key={word.code}
                     className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""}`}
                     style={{ fontFamily: `"${word.font}", serif` }}
-                    onClick={() => word.verse_key && onVerseClick?.(word.verse_key)}
+                    onClick={(e) => {
+                      if (word.verse_key) {
+                        onVerseClick?.(word.verse_key);
+                        if (mlTooltip) {
+                          setWordPopover({ text: mlTooltip, verseKey: word.verse_key, el: e.currentTarget });
+                        }
+                      }
+                    }}
                     title={mlTooltip ? `${word.text} — ${mlTooltip}` : word.text}
                   >
                     {word.char}
