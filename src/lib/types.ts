@@ -35,7 +35,8 @@ export const RECITERS: Reciter[] = [
   { id: "ar.alafasy", name: "Mishary Rashid Alafasy", arabicName: "مشاري راشد العفاسي", quranComId: 7 },
   { id: "ar.abdurrahmaansudais", name: "Abdurrahman As-Sudais", arabicName: "عبد الرحمن السديس", quranComId: 3 },
   { id: "ar.husary", name: "Mahmoud Khalil Al-Husary", arabicName: "محمود خليل الحصري", quranComId: 6 },
-  { id: "ar.mahirualmuaiqly", name: "Mahir Al-Muayqali", arabicName: "ماهر المعيقلي", quranComId: null },
+  { id: "ar.mahirualmuaiqly", name: "Maher Al-Muaiqly (Haramain)", arabicName: "ماهر المعيقلي", quranComId: null },
+  { id: "ar.hudhaify", name: "Ali Al-Hudaify", arabicName: "علي الحذيفي", quranComId: null },
 ];
 
 export interface WordSegment {

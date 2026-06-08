@@ -24,10 +24,18 @@ const audioHandlers = new WeakMap<HTMLAudioElement, {
   handleLoadedMetadata: () => void;
 }>();
 
-function getModeLabel(mode: AudioMode): string {
-  if (mode === "arabic") return "Arabic";
-  if (mode === "malayalam") return "മലയാളം";
-  return "മലയാളം + Arabic";
+const SPEEDS = [1, 1.25, 1.5, 2] as const;
+
+const AUDIO_MODES: AudioMode[] = ["arabic", "malayalam", "both"];
+
+const MODE_LABELS: Record<AudioMode, string> = {
+  arabic: "Ar",
+  malayalam: "Ml",
+  both: "Ml+Ar",
+};
+
+function shortModeLabel(mode: AudioMode): string {
+  return MODE_LABELS[mode];
 }
 
 export default function AudioPlayer({
@@ -49,12 +57,14 @@ export default function AudioPlayer({
   const [playingMalayalam, setPlayingMalayalam] = useState(false);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("none");
   const [playLoop, setPlayLoop] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const onPageCompleteRef = useRef(onPageComplete);
   const onVerseChangeRef = useRef(onVerseChange);
   const onWordHighlightRef = useRef(onWordHighlight);
   const stoppedRef = useRef(false);
   const volumeRef = useRef(volume);
+  const playbackRateRef = useRef(playbackRate);
   const segmentsRef = useRef<Awaited<ReturnType<typeof fetchChapterSegments>>>([]);
   const rafRef = useRef<number>(0);
   const currentWordIndexRef = useRef<number | null>(null);
@@ -68,6 +78,7 @@ export default function AudioPlayer({
   const highlightVerseKeyRef = useRef(highlightVerseKey);
 
   useEffect(() => { volumeRef.current = volume; }, [volume]);
+  useEffect(() => { playbackRateRef.current = playbackRate; }, [playbackRate]);
   useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
   useEffect(() => { currentAyahIndexRef.current = currentAyahIndex; }, [currentAyahIndex]);
   useEffect(() => { ayahsRef.current = ayahs; }, [ayahs]);
@@ -235,6 +246,7 @@ export default function AudioPlayer({
 
     const audio = new Audio(url);
     audio.volume = volumeRef.current;
+    audio.playbackRate = playbackRateRef.current;
     audioRef.current = audio;
 
     if (!playingMalayalam && mode !== "malayalam") {
@@ -289,6 +301,26 @@ export default function AudioPlayer({
     }
   }, [volume]);
 
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !isPlaying) return;
+    let rafId: number;
+    const tick = () => {
+      if (audio && !audio.paused) {
+        setCurrentTime(audio.currentTime);
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying]);
+
   const togglePlay = useCallback(() => {
     setIsPlaying((prev) => {
       if (!prev) {
@@ -341,8 +373,26 @@ export default function AudioPlayer({
     []
   );
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setVolume(parseFloat(e.target.value));
+  const cycleSpeed = useCallback(() => {
+    setPlaybackRate((prev) => {
+      const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
+      return SPEEDS[(idx + 1) % SPEEDS.length];
+    });
+  }, []);
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+    setCurrentTime(time);
+  };
+
+  const formatTime = (t: number) => {
+    if (!isFinite(t)) return "0:00";
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -351,20 +401,18 @@ export default function AudioPlayer({
     <div className="audio-player">
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <select
-            value={audioMode}
-            onChange={(e) => {
-              const newMode = e.target.value as AudioMode;
+          <button
+            onClick={() => {
+              const idx = AUDIO_MODES.indexOf(audioMode);
+              const next = AUDIO_MODES[(idx + 1) % AUDIO_MODES.length];
               stop();
-              onAudioModeChange?.(newMode);
+              onAudioModeChange?.(next);
             }}
-            className="reciter-select"
+            className="px-1.5 py-[1px] rounded text-[10px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
             aria-label="Audio mode"
           >
-            <option value="arabic">Arabic</option>
-            <option value="malayalam">മലയാളം</option>
-            <option value="both">മലയാളം + Arabic</option>
-          </select>
+            {shortModeLabel(audioMode)}
+          </button>
           {audioMode !== "malayalam" && (
             <select
               value={reciter.id}
@@ -397,13 +445,25 @@ export default function AudioPlayer({
               )}
             </>
           ) : (
-            getModeLabel(audioMode)
+            <span className="font-medium">{shortModeLabel(audioMode)}</span>
           )}
         </span>
       </div>
 
-      <div className="progress-bar-container">
-        <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] tabular-nums text-[var(--muted)] min-w-[2.5rem] text-right">{formatTime(currentTime)}</span>
+        <input
+          type="range"
+          min={0}
+          max={duration || 0}
+          step={0.01}
+          value={currentTime}
+          onChange={handleSeek}
+          className="seek-bar"
+          style={{ '--seek-value': `${progressPercent}%` } as React.CSSProperties}
+          aria-label="Seek"
+        />
+        <span className="text-[10px] tabular-nums text-[var(--muted)] min-w-[2.5rem]">{formatTime(duration)}</span>
       </div>
 
       <div className="flex items-center justify-center gap-1 mt-1.5">
@@ -453,20 +513,14 @@ export default function AudioPlayer({
           )}
         </button>
 
-        <div className="flex items-center gap-1.5 ml-3 pl-3 border-l border-[var(--border)]">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 text-[var(--muted)]">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
-          </svg>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={volume}
-            onChange={handleVolumeChange}
-            className="volume-slider"
-            aria-label="Volume"
-          />
+        <div className="flex items-center gap-1 ml-2 pl-2 border-l border-[var(--border)]">
+          <button
+            onClick={cycleSpeed}
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
+            aria-label="Playback speed"
+          >
+            {playbackRate}x
+          </button>
         </div>
       </div>
     </div>

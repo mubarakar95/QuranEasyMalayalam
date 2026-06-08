@@ -8,13 +8,16 @@ import Sidebar from "@/components/Sidebar";
 import { Reciter, RECITERS, TOTAL_PAGES, HighlightWord, AudioMode } from "@/lib/types";
 import { fetchPage, fetchTranslationPage } from "@/lib/quran-api";
 import { PageData as ApiPageData } from "@/lib/types";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import QuranPage from "@/components/QuranPage";
+import SwipeWBWView from "@/components/SwipeWBWView";
 
 export default function Home() {
-  const [hydrated, setHydrated] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageData, setPageData] = useState<ApiPageData | null>(null);
   const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [simpleMode, setSimpleMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reciter, setReciter] = useState<Reciter>(RECITERS[0]);
   const [darkMode, setDarkMode] = useState(false);
@@ -27,23 +30,35 @@ export default function Home() {
   const [translationMapRight, setTranslationMapRight] = useState<Map<string, string> | null>(null);
   const [audioMode, setAudioMode] = useState<AudioMode>("arabic");
   const [twoPageMode, setTwoPageMode] = useState(false);
+  const [mlFontSize, setMlFontSize] = useState(100);
+  const [showSwipeWBW, setShowSwipeWBW] = useState(false);
+  const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
+  const [audioVisible, setAudioVisible] = useState(true);
 
   useEffect(() => {
-    const savedPage = parseInt(localStorage.getItem("quran-page") || "1");
-    if (savedPage >= 1 && savedPage <= TOTAL_PAGES) setCurrentPage(savedPage);
-    const savedDark = localStorage.getItem("quran-dark-mode");
-    if (savedDark === "true") setDarkMode(true);
-    else if (savedDark === null && window.matchMedia("(prefers-color-scheme: dark)").matches) setDarkMode(true);
-    const savedTranslation = localStorage.getItem("quran-show-translation");
-    if (savedTranslation === "true") setShowTranslation(true);
-    const savedWordByWord = localStorage.getItem("quran-show-word-by-word");
-    if (savedWordByWord === "true") setShowWordByWord(true);
-    const savedTwoPage = localStorage.getItem("quran-two-page-mode");
-    if (savedTwoPage === "true") {
-      setTwoPageMode(true);
-      if (savedPage % 2 === 0) setCurrentPage(savedPage - 1);
+    try {
+      if (window.location.search.includes("simple=1")) setSimpleMode(true);
+      const savedPage = parseInt(localStorage.getItem("quran-page") || "1");
+      if (savedPage >= 1 && savedPage <= TOTAL_PAGES) setCurrentPage(savedPage);
+      const savedDark = localStorage.getItem("quran-dark-mode");
+      if (savedDark === "true") setDarkMode(true);
+      else if (savedDark === null && window.matchMedia("(prefers-color-scheme: dark)").matches) setDarkMode(true);
+      const savedTranslation = localStorage.getItem("quran-show-translation");
+      if (savedTranslation === "true") setShowTranslation(true);
+      const savedWordByWord = localStorage.getItem("quran-show-word-by-word");
+      if (savedWordByWord === "true") setShowWordByWord(true);
+      const savedSwipeWBW = localStorage.getItem("quran-show-swipe-wbw");
+      if (savedSwipeWBW === "true") setShowSwipeWBW(true);
+      const savedTwoPage = localStorage.getItem("quran-two-page-mode");
+      if (savedTwoPage === "true") {
+        setTwoPageMode(true);
+        if (savedPage % 2 === 0) setCurrentPage(savedPage - 1);
+      }
+      const savedMlSize = parseInt(localStorage.getItem("quran-ml-font-size") || "100");
+      if (savedMlSize >= 60 && savedMlSize <= 200) setMlFontSize(savedMlSize);
+    } catch {
+      /* localStorage unavailable (e.g. Safari private) */
     }
-    setHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -57,7 +72,7 @@ export default function Home() {
         if (!cancelled) {
           setPageData(data);
           setLoading(false);
-          localStorage.setItem("quran-page", currentPage.toString());
+          try { localStorage.setItem("quran-page", currentPage.toString()); } catch {}
           window.scrollTo({ top: 0, behavior: "smooth" });
         }
       } catch {
@@ -106,30 +121,50 @@ export default function Home() {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
-    localStorage.setItem("quran-dark-mode", darkMode.toString());
+    try { localStorage.setItem("quran-dark-mode", darkMode.toString()); } catch {}
   }, [darkMode]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--ml-font-size", `${mlFontSize}%`);
+    const labelSpace = `${1.5 * (mlFontSize / 100)}rem`;
+    document.documentElement.style.setProperty("--ml-label-space", labelSpace);
+    try { localStorage.setItem("quran-ml-font-size", mlFontSize.toString()); } catch {}
+  }, [mlFontSize]);
+
+  useEffect(() => {
+    setCurrentAyahIndex(0);
+    if (showSwipeWBW) setAudioVisible(false);
+  }, [currentPage, showSwipeWBW]);
 
   const toggleTranslation = useCallback(() => {
     setShowTranslation((prev) => {
       const next = !prev;
-      localStorage.setItem("quran-show-translation", next.toString());
+      try { localStorage.setItem("quran-show-translation", next.toString()); } catch {}
       if (!next) setTranslationMap(null);
       return next;
     });
   }, []);
 
-  const toggleWordByWord = useCallback(() => {
-    setShowWordByWord((prev) => {
-      const next = !prev;
-      localStorage.setItem("quran-show-word-by-word", next.toString());
-      return next;
-    });
-  }, []);
-
+  const cycleMode = useCallback(() => {
+    if (showSwipeWBW) {
+      setShowSwipeWBW(false);
+      setShowWordByWord(false);
+      try { localStorage.setItem("quran-show-swipe-wbw", "false"); } catch {}
+      try { localStorage.setItem("quran-show-word-by-word", "false"); } catch {}
+    } else if (showWordByWord) {
+      setShowWordByWord(false);
+      setShowSwipeWBW(true);
+      try { localStorage.setItem("quran-show-word-by-word", "false"); } catch {}
+      try { localStorage.setItem("quran-show-swipe-wbw", "true"); } catch {}
+    } else {
+      setShowWordByWord(true);
+      try { localStorage.setItem("quran-show-word-by-word", "true"); } catch {}
+    }
+  }, [showWordByWord, showSwipeWBW]);
   const toggleTwoPageMode = useCallback(() => {
     setTwoPageMode((prev) => {
       const next = !prev;
-      localStorage.setItem("quran-two-page-mode", next.toString());
+      try { localStorage.setItem("quran-two-page-mode", next.toString()); } catch {}
       if (next) {
         setCurrentPage((p) => (p % 2 === 0 ? p - 1 : p));
       }
@@ -172,62 +207,81 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [goNext, goPrev]);
 
-  if (!hydrated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-5 h-5 border-2 border-[var(--foreground)] border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-[var(--muted)]">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   const ayahs = pageData?.ayahs || [];
   const surahName = pageData?.ayahs[0]?.surah.englishName;
   const juzNumber = pageData?.ayahs[0]?.juz;
 
   return (
+    <ErrorBoundary>
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-[var(--border)] bg-[var(--background)] sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-semibold tracking-tight">
-              Quran <span className="font-normal text-[var(--muted)]">Easy</span>
-            </h1>
-          </div>
-
+        <div className="max-w-3xl mx-auto px-4 h-14 grid grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex items-center gap-1">
             {!twoPageMode && (
               <button
-                onClick={toggleWordByWord}
-                className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
-                  showWordByWord
-                    ? "bg-[var(--foreground)] text-[var(--background)]"
-                    : "hover:bg-[var(--surface)] text-[var(--muted)]"
+                onClick={cycleMode}
+                className={`p-2 rounded-md transition-colors ${
+                  showSwipeWBW || showWordByWord
+                    ? "text-[var(--foreground)]"
+                    : "hover:text-[var(--foreground)] text-[var(--muted)]"
                 }`}
-                aria-label="Toggle word-by-word Malayalam"
+                aria-label="Toggle word-by-word or swipe mode"
+                title={showSwipeWBW ? "Swipe mode" : showWordByWord ? "Word-by-word" : "Off"}
               >
-                Word
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[18px] h-[18px]">
+                  {showSwipeWBW ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h12M4 18h8" />
+                  )}
+                </svg>
               </button>
             )}
             <button
               onClick={toggleTranslation}
-              className={`px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+              className={`p-2 rounded-md transition-colors ${
                 showTranslation
-                  ? "bg-[var(--foreground)] text-[var(--background)]"
-                  : "hover:bg-[var(--surface)] text-[var(--muted)]"
+                  ? "text-[var(--foreground)]"
+                  : "hover:text-[var(--foreground)] text-[var(--muted)]"
               }`}
               aria-label="Toggle Malayalam translation"
+              title={showTranslation ? "On" : "Off"}
             >
-              മലയാളം
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[18px] h-[18px]">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.78.147 2.653.255" />
+              </svg>
             </button>
+            <button
+              onClick={() => setAudioVisible((v) => !v)}
+              className={`p-2 rounded-md transition-colors ${
+                audioVisible
+                  ? "hover:text-[var(--foreground)] text-[var(--muted)]"
+                  : "text-[var(--foreground)]"
+              }`}
+              aria-label={audioVisible ? "Hide audio player" : "Show audio player"}
+              title={audioVisible ? "Hide audio" : "Show audio"}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[18px] h-[18px]">
+                {audioVisible ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                )}
+              </svg>
+            </button>
+          </div>
+
+          <h1 className="text-base font-semibold tracking-tight">
+            Quran <span className="font-normal text-[var(--muted)]">Easy</span>
+          </h1>
+
+          <div className="flex items-center gap-1 justify-self-end">
             <button
               onClick={toggleTwoPageMode}
               className={`p-2 rounded-md transition-colors ${
                 twoPageMode
-                  ? "bg-[var(--foreground)] text-[var(--background)]"
-                  : "hover:bg-[var(--surface)] text-[var(--muted)]"
+                  ? "text-[var(--foreground)]"
+                  : "hover:text-[var(--foreground)] text-[var(--muted)]"
               }`}
               aria-label="Toggle two-page mode"
             >
@@ -237,7 +291,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-md hover:bg-[var(--surface)] transition-colors"
+              className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
               aria-label="Toggle dark mode"
             >
               {darkMode ? (
@@ -252,7 +306,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-md hover:bg-[var(--surface)] transition-colors"
+              className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
               aria-label="Open navigation"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[18px] h-[18px]">
@@ -270,25 +324,22 @@ export default function Home() {
         surahName={surahName}
         juzNumber={juzNumber}
         twoPageMode={twoPageMode}
+        mlFontSize={mlFontSize}
+        onMlFontSizeChange={setMlFontSize}
       />
 
-      <main className="flex-1 pb-28">
-        {error && (
-          <div className="max-w-3xl mx-auto px-4 py-4">
-            <div className="border border-[var(--border)] rounded-lg p-4 text-center">
-              <p className="text-sm text-[var(--muted)]">{error}</p>
-              <button
-                onClick={() => setRetryCount((c) => c + 1)}
-                className="mt-2 px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
-              >
-                Retry
-              </button>
-            </div>
+      <main className={`flex-1 ${audioVisible ? "pb-28" : "pb-0"}`}>
+        <div style={{ display: simpleMode ? "none" : "block" }}>
+          <div style={{ display: showSwipeWBW ? "block" : "none" }}>
+            <SwipeWBWView
+              ayahs={ayahs}
+              currentPage={currentPage}
+              mlFontSize={mlFontSize}
+              currentAyahIndex={currentAyahIndex}
+              onAyahIndexChange={setCurrentAyahIndex}
+            />
           </div>
-        )}
-
-        {twoPageMode ? (
-          <div className="mushaf-spread">
+          <div style={{ display: twoPageMode && !showSwipeWBW ? "block" : "none" }} className="mushaf-spread">
             <div className="mushaf-spread-pages">
               {currentPage + 1 <= TOTAL_PAGES && (
                 <>
@@ -317,19 +368,37 @@ export default function Home() {
               </div>
             </div>
           </div>
-        ) : (
-          <MushafPage
-            currentPage={currentPage}
-            highlightVerseKey={highlightVerseKey}
-            highlightWord={highlightWord}
-            onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-            showTranslation={showTranslation}
-            translationMap={translationMap}
-            showWordByWord={showWordByWord}
-          />
-        )}
+          <div style={{ display: !twoPageMode && !showSwipeWBW ? "block" : "none" }}>
+            <MushafPage
+              currentPage={currentPage}
+              highlightVerseKey={highlightVerseKey}
+              highlightWord={highlightWord}
+              onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
+              showTranslation={showTranslation}
+              translationMap={translationMap}
+              showWordByWord={showWordByWord}
+            />
+          </div>
+          {error && (
+            <div className="max-w-3xl mx-auto px-4 py-4">
+              <div className="border border-[var(--border)] rounded-lg p-4 text-center">
+                <p className="text-sm text-[var(--muted)]">{error}</p>
+                <button
+                  onClick={() => setRetryCount((c) => c + 1)}
+                  className="mt-2 px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{ display: simpleMode ? "block" : "none" }}>
+          <QuranPage pageData={pageData} currentPage={currentPage} loading={false} />
+        </div>
       </main>
 
+      {audioVisible && (
       <div className="fixed bottom-0 left-0 right-0 z-20">
         <AudioPlayer
           key={currentPage}
@@ -344,6 +413,7 @@ export default function Home() {
           highlightVerseKey={highlightVerseKey}
         />
       </div>
+      )}
 
       <Sidebar
         isOpen={sidebarOpen}
@@ -352,5 +422,6 @@ export default function Home() {
         currentPage={currentPage}
       />
     </div>
+    </ErrorBoundary>
   );
 }

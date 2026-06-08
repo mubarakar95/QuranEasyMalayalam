@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { PageLine, fetchPageData, loadPageFont } from "@/lib/qcf4";
+import { PageLine, loadPageFont } from "@/lib/qcf4";
 import { HighlightWord } from "@/lib/types";
 import { fetchMalayalamWBW } from "@/lib/malayalam-wbw";
 
@@ -28,14 +28,59 @@ function getWordGlobalIndex(words: PageLine["words"], verseKey: string, wordInde
   return null;
 }
 
+interface WordGroup {
+  key: string;
+  words: PageLine["words"];
+  mlText: string | null;
+  verseKey: string | null;
+}
+
+function groupWbwWords(
+  words: PageLine["words"],
+  wbwMap: Map<number, string>,
+): WordGroup[] {
+  const groups: WordGroup[] = [];
+  let i = 0;
+  while (i < words.length) {
+    const w = words[i];
+    if (w.type !== "word") {
+      groups.push({ key: `nw-${w.code}`, words: [w], mlText: null, verseKey: null });
+      i++;
+      continue;
+    }
+    const ml = wbwMap.get(w.code);
+    if (ml) {
+      const groupWords: PageLine["words"] = [w];
+      let j = i + 1;
+      while (
+        j < words.length &&
+        words[j].type === "word" &&
+        words[j].verse_key === w.verse_key &&
+        !wbwMap.has(words[j].code)
+      ) {
+        groupWords.push(words[j]);
+        j++;
+      }
+      groups.push({ key: `g-${w.code}`, words: groupWords, mlText: ml, verseKey: w.verse_key ?? null });
+      i = j;
+    } else {
+      groups.push({ key: `s-${w.code}`, words: [w], mlText: null, verseKey: w.verse_key ?? null });
+      i++;
+    }
+  }
+  return groups;
+}
+
 export default function MushafPage({ currentPage, highlightVerseKey, highlightWord, onVerseClick, showTranslation = false, translationMap = null, showWordByWord = false }: MushafPageProps) {
   const [lines, setLines] = useState<PageLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const [wbwData, setWbwData] = useState<Record<string, string[]> | null>(null);
   const [wordPopover, setWordPopover] = useState<{ text: string; verseKey: string; el: Element } | null>(null);
   const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const ttsAudioRef = useRef<HTMLAudioElement>(null);
+  const [dataLoadingSlow, setDataLoadingSlow] = useState(false);
 
   const dismissPopover = useCallback(() => {
     setWordPopover(null);
@@ -61,36 +106,45 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
 
   useEffect(() => {
     let cancelled = false;
+    setFontsLoaded(false);
+    setLoading(true);
+    setDataLoadingSlow(false);
+    setError(null);
 
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchPageData(currentPage);
+    const slowTimer = setTimeout(() => { if (!cancelled) setDataLoadingSlow(true); }, 10000);
+
+    const url = `/api/qcf4/${currentPage.toString().padStart(3, "0")}`;
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server returned ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
         if (cancelled) return;
+        setLines(data.lines || []);
+        setLoading(false);
 
-        const fontsToLoad = new Set<string>();
-        fontsToLoad.add(data.font);
-        for (const line of data.lines) {
-          for (const word of line.words) {
-            fontsToLoad.add(word.font);
+        const fonts = new Set<string>();
+        fonts.add(data.font);
+        for (const line of data.lines || []) {
+          for (const word of line.words || []) {
+            fonts.add(word.font);
           }
         }
-        await Promise.all([...fontsToLoad].map((f) => loadPageFont(f)));
-
+        Promise.all([...fonts].map((f) => loadPageFont(f).catch(() => {})))
+          .then(() => { if (!cancelled) setFontsLoaded(true); })
+          .catch(() => {});
+      })
+      .catch((err) => {
         if (cancelled) return;
-        setLines(data.lines);
+        setError(err instanceof Error ? err.message : "Failed to load page data");
         setLoading(false);
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load page");
-          setLoading(false);
-        }
-      }
-    }
+      });
 
-    load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(slowTimer);
+    };
   }, [currentPage]);
 
   useEffect(() => {
@@ -159,12 +213,30 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     return map;
   }, [lines]);
 
+  const groupedLines = useMemo(() => {
+    if (!showWordByWord || wordByWordMap.size === 0) return null;
+    return lines.map((line) => ({
+      ...line,
+      groups: groupWbwWords(line.words, wordByWordMap),
+    }));
+  }, [showWordByWord, wordByWordMap, lines]);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="flex items-center justify-center min-h-[50vh] px-4">
         <div className="flex flex-col items-center gap-3">
           <div className="w-5 h-5 border-2 border-[var(--foreground)] border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-[var(--muted)]">Loading Mushaf...</p>
+          <p className="text-xs text-[var(--muted)]">
+            {dataLoadingSlow ? "Taking longer than expected..." : "Loading Mushaf..."}
+          </p>
+          {dataLoadingSlow && (
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-1 px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
+            >
+              Reload page
+            </button>
+          )}
         </div>
       </div>
     );
@@ -172,8 +244,24 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-[var(--muted)]">{error}</p>
+      <div className="flex items-center justify-center min-h-[50vh] px-4">
+        <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+          <p className="text-sm text-[var(--muted)]">{error}</p>
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
+            >
+              Retry
+            </button>
+            <button
+              onClick={() => { window.location.search = "simple=1"; }}
+              className="px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
+            >
+              Simple mode
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -282,7 +370,98 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     return (
     <div className="mushaf-container">
       {popoverEl}
-      {lines.map((line) => {
+      {groupedLines
+        ? groupedLines.map((line) => (
+          <div key={line.line}>
+            <div className="mushaf-line wbw-active">
+              {line.groups.map((group) => {
+                if (group.mlText) {
+                  return (
+                    <span key={group.key} className="wbw-group">
+                      {group.words.map((w) => {
+                        const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
+                        const isWH = highlightedWordCode !== null && w.code === highlightedWordCode;
+                        return (
+                          <span
+                            key={w.code}
+                            className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""}`}
+                            style={{ fontFamily: `"${w.font}", serif` }}
+                            onClick={(e) => {
+                              if (w.verse_key) {
+                                onVerseClick?.(w.verse_key);
+                                setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
+                              }
+                            }}
+                            title={`${w.text} — ${group.mlText}`}
+                          >
+                            {w.char}
+                          </span>
+                        );
+                      })}
+                      <span className="wbw-ml">{group.mlText}</span>
+                    </span>
+                  );
+                }
+                const w = group.words[0];
+                const isVerseHighlighted = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
+                const isWordHighlighted = highlightedWordCode !== null && w.code === highlightedWordCode;
+
+                if (w.type === "end") {
+                  return (
+                    <span
+                      key={w.code}
+                      className={`mushaf-end-marker ${isVerseHighlighted ? "highlighted" : ""}`}
+                      style={{ fontFamily: `"${w.font}", serif` }}
+                      onClick={() => w.verse_key && onVerseClick?.(w.verse_key)}
+                    >
+                      {w.char}
+                    </span>
+                  );
+                }
+
+                if (w.type === "surah_header") {
+                  return (
+                    <span key={w.code} className="mushaf-surah-header" style={{ fontFamily: `"${w.font}", serif` }}>
+                      {w.char}
+                    </span>
+                  );
+                }
+
+                if (w.type === "bismillah") {
+                  return (
+                    <span key={w.code} className="mushaf-bsml" style={{ fontFamily: `"${w.font}", serif` }}>
+                      {w.char}
+                    </span>
+                  );
+                }
+
+                const mlText = wbwData && w.type === "word" && w.verse_key
+                  ? (wbwData[w.verse_key]?.[w.position - 1] ?? null)
+                  : null;
+
+                return (
+                  <span
+                    key={w.code}
+                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""}`}
+                    style={{ fontFamily: `"${w.font}", serif` }}
+                    onClick={(e) => {
+                      if (w.verse_key) {
+                        onVerseClick?.(w.verse_key);
+                        if (mlText) {
+                          setWordPopover({ text: mlText, verseKey: w.verse_key, el: e.currentTarget });
+                        }
+                      }
+                    }}
+                    title={mlText ? `${w.text} — ${mlText}` : w.text}
+                  >
+                    {w.char}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        ))
+        : lines.map((line) => {
         return (
           <div key={line.line}>
             <div className={`mushaf-line ${showWordByWord && wordByWordMap.size > 0 ? "wbw-active" : ""}`}>

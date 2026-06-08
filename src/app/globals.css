@@ -102,17 +102,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 1rem;
   border-bottom: 1px solid var(--border);
 }
 
 .nav-btn {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.75rem;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem;
   border-radius: 0.5rem;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--foreground);
   background: transparent;
@@ -137,14 +138,29 @@ body {
 }
 
 .reciter-select {
-  padding: 0.375rem 0.625rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
+  padding: 0.125rem 1.25rem 0.125rem 0.375rem;
+  border-radius: 0.25rem;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--foreground);
   cursor: pointer;
   outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23999' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.25rem center;
+  background-size: 6px;
+  max-width: 9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 0.15s;
+}
+
+.reciter-select:hover {
+  border-color: var(--muted);
 }
 
 .reciter-select:focus {
@@ -192,40 +208,52 @@ body {
   opacity: 0.85;
 }
 
-.progress-bar-container {
-  width: 100%;
-  height: 2px;
-  background: var(--border);
-  border-radius: 1px;
-  overflow: hidden;
-  margin-bottom: 0.5rem;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: var(--foreground);
-  border-radius: 1px;
-  transition: width 0.3s linear;
-}
-
-.volume-slider {
-  width: 3.5rem;
-  height: 2px;
+.seek-bar {
+  flex: 1;
+  height: 3px;
   -webkit-appearance: none;
   appearance: none;
-  background: var(--border);
-  border-radius: 1px;
+  background: linear-gradient(to right, var(--foreground) 0% var(--seek-value), var(--border) var(--seek-value) 100%);
+  border-radius: 2px;
   outline: none;
   cursor: pointer;
 }
 
-.volume-slider::-webkit-slider-thumb {
+.seek-bar::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 9999px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   background: var(--foreground);
   cursor: pointer;
+}
+
+.seek-bar::-webkit-slider-track {
+  height: 3px;
+  background: transparent;
+  border-radius: 2px;
+}
+
+.seek-bar::-moz-range-track {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  border: none;
+}
+
+.seek-bar::-moz-range-progress {
+  height: 3px;
+  background: var(--foreground);
+  border-radius: 2px;
+}
+
+.seek-bar::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--foreground);
+  cursor: pointer;
+  border: none;
 }
 
 @keyframes fade-in {
@@ -270,12 +298,27 @@ body {
 }
 
 .mushaf-word.wbw-enabled {
-  position: relative;
-  display: inline-block;
-  padding: 0 0.125rem 1.5rem 0.125rem;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  padding: 0 0.125rem var(--ml-label-space, 1.5rem) 0.125rem;
   margin: 0 0.0625rem;
   background: rgba(128, 128, 128, 0.04);
   border-radius: 0.2rem;
+}
+
+.wbw-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  direction: rtl;
+  padding-bottom: var(--ml-label-space, 1.5rem);
+}
+
+.wbw-group .mushaf-word {
+  padding-bottom: 0;
 }
 
 .dark .mushaf-word.wbw-enabled {
@@ -283,23 +326,15 @@ body {
 }
 
 .wbw-ml {
-  position: absolute;
-  bottom: 0.125rem;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.5rem;
+  flex: 0 0 100%;
+  text-align: center;
+  font-size: var(--ml-font-size, 0.5rem);
   direction: ltr;
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--muted);
-  line-height: 1.2;
+  line-height: 1.15;
   pointer-events: none;
-  z-index: 1;
-  max-width: 5rem;
-  text-align: center;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 
 .mushaf-line.wbw-active {
@@ -486,7 +521,7 @@ body {
 }
 
 .mushaf-spread .mushaf-word.wbw-enabled {
-  padding-bottom: 1.1rem;
+  padding-bottom: var(--ml-label-space, 1.1rem);
   margin: 0 0.0625rem;
   background: rgba(128, 128, 128, 0.04);
   border-radius: 0.2rem;
@@ -497,8 +532,7 @@ body {
 }
 
 .mushaf-spread .wbw-ml {
-  font-size: 0.4rem;
-  max-width: 3.5rem;
+  font-size: var(--ml-font-size, 0.4rem);
 }
 
 .mushaf-spread .translation-line {
@@ -535,7 +569,7 @@ body {
 .verse-block-translation {
   direction: ltr;
   text-align: left;
-  font-size: 0.8125rem;
+  font-size: var(--ml-font-size, 0.8125rem);
   line-height: 1.6;
   color: var(--muted);
   padding: 0.25rem 0.5rem 0.125rem;
@@ -580,7 +614,7 @@ body {
 }
 
 .word-popover-ml {
-  font-size: 0.8rem;
+  font-size: var(--ml-font-size, 0.8rem);
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--foreground);
   text-align: center;
@@ -677,12 +711,11 @@ body {
   }
 
   .mushaf-spread .mushaf-word.wbw-enabled {
-    padding-bottom: 0.9rem;
+    padding-bottom: var(--ml-label-space, 0.9rem);
   }
 
   .mushaf-spread .wbw-ml {
-    font-size: 0.35rem;
-    max-width: 2.5rem;
+    font-size: var(--ml-font-size, 0.35rem);
   }
 
   .mushaf-container {
@@ -710,11 +743,498 @@ body {
   }
 
   .mushaf-word.wbw-enabled {
-    padding-bottom: 1.1rem;
+    padding-bottom: var(--ml-label-space, 1.1rem);
   }
 
   .wbw-ml {
-    font-size: 0.4rem;
-    max-width: 3.5rem;
+    font-size: var(--ml-font-size, 0.4rem);
+  }
+}
+
+.swipe-wbw-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1rem 1rem 0.5rem;
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+}
+
+.swipe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  margin-bottom: 0.75rem;
+}
+
+.swipe-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.swipe-nav-btn:hover:not(:disabled) {
+  background: var(--border);
+  border-color: var(--muted);
+}
+
+.swipe-nav-btn:disabled {
+  opacity: 0.15;
+  cursor: not-allowed;
+  border-color: transparent;
+  background: transparent;
+}
+
+.swipe-header-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  text-align: center;
+}
+
+.swipe-surah-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.swipe-surah-arabic {
+  font-size: 1rem;
+  font-family: "QCF4_Hafs_01", serif;
+}
+
+.swipe-surah-sep {
+  color: var(--muted);
+  opacity: 0.4;
+}
+
+.swipe-ayah-num {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.swipe-viewport {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  overflow: hidden;
+}
+
+.swipe-slide-content {
+  width: 100%;
+  animation: swipe-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.swipe-slide-out {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: swipe-out 0.3s ease-in forwards;
+  pointer-events: none;
+}
+
+.swipe-ayah-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border-radius: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+}
+
+.dark .swipe-ayah-card {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.swipe-ayah-card-prev {
+  opacity: 0.5;
+}
+
+.swipe-word-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.75rem;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0;
+}
+
+.swipe-word-row:last-child {
+  border-bottom: none;
+}
+
+.swipe-ml-wrap {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.swipe-ml {
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--muted);
+  line-height: 1.5;
+  direction: ltr;
+  text-align: left;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.swipe-arabic {
+  flex: 1;
+  font-size: 2.25rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  direction: rtl;
+  font-family: "QCF4_Hafs_01", "KFGQPC Uthmanic Script HAFS", serif;
+  text-align: right;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  min-width: 0;
+  padding-left: 0.5rem;
+}
+
+.swipe-speaker {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.swipe-speaker:hover {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.swipe-speaker-placeholder {
+  flex-shrink: 0;
+  width: 1.25rem;
+}
+
+.swipe-col-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.dark .swipe-col-divider {
+  opacity: 0.5;
+}
+
+.dark .swipe-ml {
+  background: transparent;
+}
+
+.swipe-loading-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.6;
+  font-family: system-ui, -apple-system, sans-serif;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+.swipe-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0 0.5rem;
+}
+
+.swipe-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.swipe-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  border: none;
+  background: var(--border);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.swipe-dot:hover {
+  background: var(--muted);
+  transform: scale(1.3);
+}
+
+.swipe-dot-active {
+  background: var(--foreground);
+  transform: scale(1.5);
+}
+
+.swipe-page-info {
+  font-size: 0.6rem;
+  color: var(--muted);
+  font-family: system-ui, -apple-system, sans-serif;
+  opacity: 0.5;
+  letter-spacing: 0.02em;
+}
+
+.swipe-minimap-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: fixed;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.swipe-minimap-toggle:hover {
+  color: var(--foreground);
+  border-color: var(--foreground);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+}
+
+.swipe-wbw-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.swipe-minimap {
+  position: fixed;
+  bottom: 5.5rem;
+  right: 0.75rem;
+  width: 85px;
+  max-height: 60vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.4rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  z-index: 15;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s, max-height 0.3s;
+  cursor: pointer;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.swipe-minimap-visible {
+  opacity: 0.85;
+  pointer-events: auto;
+}
+
+.swipe-minimap-visible:hover {
+  opacity: 1;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  max-height: 80vh;
+}
+
+.swipe-minimap-label {
+  font-size: 0.45rem;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 0.35rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.swipe-minimap-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.swipe-minimap-line-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.swipe-minimap-line {
+  position: relative;
+  height: 4px;
+  width: 100%;
+  border-radius: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.swipe-minimap-line-rtl {
+  direction: rtl;
+}
+
+.swipe-minimap-line-surah {
+  background: var(--muted);
+  opacity: 0.5;
+}
+
+.swipe-minimap-line-bsml {
+  background: var(--muted);
+  opacity: 0.3;
+}
+
+.swipe-minimap-line-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--foreground);
+  border-radius: 1px;
+}
+
+.dark .swipe-minimap {
+  border-color: #444;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+@keyframes swipe-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes swipe-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes swipe-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+@media (max-width: 768px) {
+  .swipe-wbw-container {
+    padding: 0.5rem 0.5rem 0.25rem;
+    min-height: 50vh;
+  }
+
+  .swipe-header {
+    padding: 0.35rem 0;
+    margin-bottom: 0.5rem;
+  }
+
+  .swipe-nav-btn {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .swipe-nav-btn svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .swipe-surah-name {
+    font-size: 0.75rem;
+  }
+
+  .swipe-surah-arabic {
+    font-size: 0.875rem;
+  }
+
+  .swipe-viewport {
+    min-height: 35vh;
+  }
+
+  .swipe-ayah-card {
+    border-radius: 0.75rem;
+  }
+
+  .swipe-word-row {
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+  }
+
+  .swipe-arabic {
+    font-size: 1.5rem;
+  }
+
+  .swipe-ml {
+    font-size: 0.75rem;
+  }
+
+  .swipe-dots {
+    gap: 0.3rem;
+  }
+
+  .swipe-dot {
+    width: 0.35rem;
+    height: 0.35rem;
   }
 }

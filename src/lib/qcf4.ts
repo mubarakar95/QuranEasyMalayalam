@@ -21,34 +21,46 @@ export interface PageData2 {
   lines: PageLine[];
 }
 
-const BASE_URL = "https://raw.githubusercontent.com/MohamadHajjRabee/quran-qcf4/main";
+const RAW_BASE = "https://raw.githubusercontent.com/MohamadHajjRabee/quran-qcf4/main";
 const CDN_URL = "https://cdn.jsdelivr.net/gh/MohamadHajjRabee/quran-qcf4@main";
 
 const fontCache = new Set<string>();
 const pageCache = new Map<number, PageData2>();
 
-async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
-  for (let i = 0; i <= retries; i++) {
+export function withTimeout<T>(promise: Promise<T>, ms: number, label?: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(label ? `${label} timed out after ${ms}ms` : `Timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+async function fetchPageJson(page: number): Promise<PageData2> {
+  const padded = page.toString().padStart(3, "0");
+
+  const urls = [
+    `/api/qcf4/${padded}`,
+    `${CDN_URL}/pages/${padded}.json`,
+    `${RAW_BASE}/pages/${padded}.json`,
+  ];
+
+  for (const url of urls) {
     try {
-      const response = await fetch(url);
-      if (response.ok) return response;
-      if (i === retries) return response;
+      const res = await withTimeout(fetch(url), 10000, `Fetch page ${page}`);
+      if (res.ok) return await res.json();
     } catch {
-      if (i === retries) throw new Error("Network error. Please check your internet connection.");
+      /* try next fallback */
     }
-    await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
   }
-  throw new Error("Network error. Please check your internet connection.");
+
+  throw new Error("Failed to load page data. Please check your connection and try again.");
 }
 
 export async function fetchPageData(page: number): Promise<PageData2> {
   if (pageCache.has(page)) return pageCache.get(page)!;
 
-  const padded = page.toString().padStart(3, "0");
-  const res = await fetchWithRetry(`${BASE_URL}/pages/${padded}.json`);
-  if (!res.ok) throw new Error(`Failed to load page ${page}. Please try again.`);
-
-  const data: PageData2 = await res.json();
+  const data = await fetchPageJson(page);
   pageCache.set(page, data);
   return data;
 }
@@ -64,7 +76,7 @@ export async function loadPageFont(fontName: string): Promise<string> {
     { style: "normal", weight: "normal" }
   );
 
-  await fontFace.load();
+  await withTimeout(fontFace.load(), 20000, `Font load ${fontName}`);
   document.fonts.add(fontFace);
   fontCache.add(fontName);
 
@@ -74,7 +86,7 @@ export async function loadPageFont(fontName: string): Promise<string> {
       `url(${CDN_URL}/fonts-woff2/QCF4_QBSML.woff2) format('woff2'), url(${CDN_URL}/fonts/QCF4_QBSML.ttf) format('truetype')`,
       { style: "normal", weight: "normal" }
     );
-    await bsml.load();
+    await withTimeout(bsml.load(), 20000, "Font load QCF4_QBSML");
     document.fonts.add(bsml);
     fontCache.add("QCF4_QBSML");
   }

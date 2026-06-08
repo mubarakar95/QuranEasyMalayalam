@@ -3,7 +3,8 @@ export async function GET(req: Request) {
   const text = searchParams.get("text");
   if (!text) return new Response("Missing text", { status: 400 });
 
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=gtx&q=${encodeURIComponent(text)}&tl=ml`;
+  // Use Google TTS with a lower speed to get a deeper (male-like) voice
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=gtx&q=${encodeURIComponent(text)}&tl=ml&ttsspeed=0.5`;
 
   const resp = await fetch(url, {
     headers: { "User-Agent": "Mozilla/5.0" },
