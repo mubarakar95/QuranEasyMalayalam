@@ -35,6 +35,17 @@ interface WordGroup {
   verseKey: string | null;
 }
 
+function findWbwMeaning(wbwData: Record<string, string[]> | null, verseKey: string, position: number): string | null {
+  if (!wbwData) return null;
+  const verseWords = wbwData[verseKey];
+  if (!verseWords) return null;
+  for (let i = position - 1; i >= 0; i--) {
+    const ml = verseWords[i];
+    if (ml) return ml;
+  }
+  return null;
+}
+
 function groupWbwWords(
   words: PageLine["words"],
   wbwMap: Map<number, string>,
@@ -81,6 +92,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
   const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const ttsAudioRef = useRef<HTMLAudioElement>(null);
   const [dataLoadingSlow, setDataLoadingSlow] = useState(false);
+  const [ayahSheet, setAyahSheet] = useState<{ verseKey: string } | null>(null);
 
   const dismissPopover = useCallback(() => {
     setWordPopover(null);
@@ -310,7 +322,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                   {words.map((w) => {
                     const isWordHighlighted = highlightedWordCode !== null && w.code === highlightedWordCode && w.verse_key === vk;
                     const mlTooltip = wbwData && w.type === "word" && w.verse_key
-                      ? (wbwData[w.verse_key]?.[w.position - 1] ?? null)
+                      ? findWbwMeaning(wbwData, w.verse_key, w.position)
                       : null;
 
                     if (w.type === "end") {
@@ -347,6 +359,10 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                             setWordPopover({ text: mlTooltip, verseKey: vk, el: e.currentTarget });
                           }
                         }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setAyahSheet({ verseKey: vk });
+                        }}
                         title={mlTooltip ? `${w.text} — ${mlTooltip}` : w.text}
                       >
                         {w.char}
@@ -367,7 +383,46 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
       );
     }
 
+    let ayahSheetContent = null;
+    if (ayahSheet) {
+      const vk = ayahSheet.verseKey;
+      const words = verseWordsMap.get(vk)?.filter((w) => w.type === "word") || [];
+      const translation = translationMap?.get(vk);
+      ayahSheetContent = (
+        <div className="ayah-sheet-backdrop" onClick={() => setAyahSheet(null)}>
+          <div className="ayah-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="ayah-sheet-handle" />
+            <button className="ayah-sheet-close" onClick={() => setAyahSheet(null)}>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="ayah-sheet-header">
+              <span className="ayah-sheet-verse-ref">{vk}</span>
+            </div>
+            {translation && (
+              <div className="ayah-sheet-translation" dir="ltr">{translation}</div>
+            )}
+            <div className="ayah-sheet-divider" />
+            <div className="ayah-sheet-words">
+              {words.map((w, i) => {
+                const ml = wbwData?.[vk]?.[w.position - 1] || null;
+                return (
+                  <div key={i} className="ayah-sheet-word-row">
+                    <span className="ayah-sheet-ml">{ml || ""}</span>
+                    <span className="ayah-sheet-col" />
+                    <span className="ayah-sheet-arabic" dir="rtl" style={{ fontFamily: `"${w.font}", serif` }}>{w.char}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
+    <>
     <div className="mushaf-container">
       {popoverEl}
       {groupedLines
@@ -378,26 +433,32 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                 if (group.mlText) {
                   return (
                     <span key={group.key} className="wbw-group">
-                      {group.words.map((w) => {
-                        const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
-                        const isWH = highlightedWordCode !== null && w.code === highlightedWordCode;
-                        return (
-                          <span
-                            key={w.code}
-                            className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""}`}
-                            style={{ fontFamily: `"${w.font}", serif` }}
-                            onClick={(e) => {
-                              if (w.verse_key) {
-                                onVerseClick?.(w.verse_key);
-                                setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
-                              }
-                            }}
-                            title={`${w.text} — ${group.mlText}`}
-                          >
-                            {w.char}
-                          </span>
-                        );
-                      })}
+                      <span className="wbw-words-row">
+                        {group.words.map((w) => {
+                          const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
+                          const isWH = highlightedWordCode !== null && w.code === highlightedWordCode;
+                          return (
+                            <span
+                              key={w.code}
+                              className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""}`}
+                              style={{ fontFamily: `"${w.font}", serif` }}
+                              onClick={(e) => {
+                                if (w.verse_key) {
+                                  onVerseClick?.(w.verse_key);
+                                  setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
+                                }
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                if (w.verse_key) setAyahSheet({ verseKey: w.verse_key });
+                              }}
+                              title={`${w.text} — ${group.mlText}`}
+                            >
+                              {w.char}
+                            </span>
+                          );
+                        })}
+                      </span>
                       <span className="wbw-ml">{group.mlText}</span>
                     </span>
                   );
@@ -435,9 +496,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                   );
                 }
 
-                const mlText = wbwData && w.type === "word" && w.verse_key
-                  ? (wbwData[w.verse_key]?.[w.position - 1] ?? null)
-                  : null;
+                const mlText = w.verse_key ? findWbwMeaning(wbwData, w.verse_key, w.position) : null;
 
                 return (
                   <span
@@ -451,6 +510,10 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                           setWordPopover({ text: mlText, verseKey: w.verse_key, el: e.currentTarget });
                         }
                       }
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (w.verse_key) setAyahSheet({ verseKey: w.verse_key });
                     }}
                     title={mlText ? `${w.text} — ${mlText}` : w.text}
                   >
@@ -500,7 +563,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
 
                 const mlText = showWordByWord ? wordByWordMap.get(word.code) : undefined;
                 const mlTooltip = wbwData && word.type === "word" && word.verse_key
-                  ? (wbwData[word.verse_key]?.[word.position - 1] ?? null)
+                  ? findWbwMeaning(wbwData, word.verse_key, word.position)
                   : null;
 
                 return (
@@ -516,6 +579,10 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                         }
                       }
                     }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (word.verse_key) setAyahSheet({ verseKey: word.verse_key });
+                    }}
                     title={mlTooltip ? `${word.text} — ${mlTooltip}` : word.text}
                   >
                     {word.char}
@@ -528,5 +595,8 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
         );
       })}
     </div>
+
+    {ayahSheetContent}
+    </>
   );
 }

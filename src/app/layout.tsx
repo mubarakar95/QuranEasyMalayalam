@@ -33,7 +33,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://cdn.islamic.network" />
         <link rel="preconnect" href="https://api.quran.com" />
       </head>
-      <body className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
+      <body className="min-h-screen flex flex-col overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
         <ServiceWorkerRegistration />
         {children}
       </body>

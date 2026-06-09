@@ -92,10 +92,6 @@ export default function Home() {
   }, [currentPage, retryCount]);
 
   useEffect(() => {
-    if (!showTranslation) {
-      return;
-    }
-
     let cancelled = false;
 
     fetchTranslationPage(currentPage)
@@ -117,7 +113,7 @@ export default function Home() {
     }
 
     return () => { cancelled = true; };
-  }, [currentPage, showTranslation, twoPageMode]);
+  }, [currentPage, showTranslation, showSwipeWBW, twoPageMode]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -145,22 +141,25 @@ export default function Home() {
     });
   }, []);
 
-  const cycleMode = useCallback(() => {
-    if (showSwipeWBW) {
+  const toggleWordByWord = useCallback(() => {
+    const next = !showWordByWord;
+    setShowWordByWord(next);
+    if (next) {
       setShowSwipeWBW(false);
-      setShowWordByWord(false);
       try { localStorage.setItem("quran-show-swipe-wbw", "false"); } catch {}
-      try { localStorage.setItem("quran-show-word-by-word", "false"); } catch {}
-    } else if (showWordByWord) {
-      setShowWordByWord(false);
-      setShowSwipeWBW(true);
-      try { localStorage.setItem("quran-show-word-by-word", "false"); } catch {}
-      try { localStorage.setItem("quran-show-swipe-wbw", "true"); } catch {}
-    } else {
-      setShowWordByWord(true);
-      try { localStorage.setItem("quran-show-word-by-word", "true"); } catch {}
     }
-  }, [showWordByWord, showSwipeWBW]);
+    try { localStorage.setItem("quran-show-word-by-word", next.toString()); } catch {}
+  }, [showWordByWord]);
+
+  const toggleSwipe = useCallback(() => {
+    const next = !showSwipeWBW;
+    setShowSwipeWBW(next);
+    if (next) {
+      setShowWordByWord(false);
+      try { localStorage.setItem("quran-show-word-by-word", "false"); } catch {}
+    }
+    try { localStorage.setItem("quran-show-swipe-wbw", next.toString()); } catch {}
+  }, [showSwipeWBW]);
   const toggleTwoPageMode = useCallback(() => {
     setTwoPageMode((prev) => {
       const next = !prev;
@@ -217,26 +216,34 @@ export default function Home() {
       <header className="border-b border-[var(--border)] bg-[var(--background)] sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-4 h-14 grid grid-cols-[1fr_auto_1fr] items-center">
           <div className="flex items-center gap-1">
-            {!twoPageMode && (
-              <button
-                onClick={cycleMode}
-                className={`p-2 rounded-md transition-colors ${
-                  showSwipeWBW || showWordByWord
-                    ? "text-[var(--foreground)]"
-                    : "hover:text-[var(--foreground)] text-[var(--muted)]"
-                }`}
-                aria-label="Toggle word-by-word or swipe mode"
-                title={showSwipeWBW ? "Swipe mode" : showWordByWord ? "Word-by-word" : "Off"}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[18px] h-[18px]">
-                  {showSwipeWBW ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h12M4 18h8" />
-                  )}
-                </svg>
-              </button>
-            )}
+            <button
+              onClick={toggleWordByWord}
+              className={`p-2 rounded-md transition-colors ${
+                showWordByWord
+                  ? "text-[var(--foreground)]"
+                  : "hover:text-[var(--foreground)] text-[var(--muted)]"
+              }`}
+              aria-label="Toggle word-by-word"
+              title={showWordByWord ? "Word-by-word on" : "Word-by-word off"}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[18px] h-[18px]">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h12M4 18h8" />
+              </svg>
+            </button>
+            <button
+              onClick={toggleSwipe}
+              className={`p-2 rounded-md transition-colors ${
+                showSwipeWBW
+                  ? "text-[var(--foreground)]"
+                  : "hover:text-[var(--foreground)] text-[var(--muted)]"
+              }`}
+              aria-label="Toggle swipe word-by-word"
+              title={showSwipeWBW ? "Swipe mode on" : "Swipe mode off"}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-[18px] h-[18px]">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+              </svg>
+            </button>
             <button
               onClick={toggleTranslation}
               className={`p-2 rounded-md transition-colors ${
@@ -251,6 +258,13 @@ export default function Home() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.78.147 2.653.255" />
               </svg>
             </button>
+          </div>
+
+          <h1 className="text-base font-semibold tracking-tight">
+            Quran <span className="font-normal text-[var(--muted)]">Easy</span>
+          </h1>
+
+          <div className="flex items-center gap-1 justify-self-end">
             <button
               onClick={() => setAudioVisible((v) => !v)}
               className={`p-2 rounded-md transition-colors ${
@@ -269,16 +283,9 @@ export default function Home() {
                 )}
               </svg>
             </button>
-          </div>
-
-          <h1 className="text-base font-semibold tracking-tight">
-            Quran <span className="font-normal text-[var(--muted)]">Easy</span>
-          </h1>
-
-          <div className="flex items-center gap-1 justify-self-end">
             <button
               onClick={toggleTwoPageMode}
-              className={`p-2 rounded-md transition-colors ${
+              className={`hidden sm:inline-flex p-2 rounded-md transition-colors ${
                 twoPageMode
                   ? "text-[var(--foreground)]"
                   : "hover:text-[var(--foreground)] text-[var(--muted)]"
@@ -337,6 +344,7 @@ export default function Home() {
               mlFontSize={mlFontSize}
               currentAyahIndex={currentAyahIndex}
               onAyahIndexChange={setCurrentAyahIndex}
+              translationMap={translationMap}
             />
           </div>
           <div style={{ display: twoPageMode && !showSwipeWBW ? "block" : "none" }} className="mushaf-spread">

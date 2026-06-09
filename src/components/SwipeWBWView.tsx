@@ -11,6 +11,7 @@ interface SwipeWBWViewProps {
   mlFontSize: number;
   currentAyahIndex: number;
   onAyahIndexChange: (index: number) => void;
+  translationMap?: Map<string, string> | null;
 }
 
 interface WordGroup {
@@ -54,7 +55,7 @@ function groupAyahWords(arabicText: string, meanings: string[]): WordGroup[] {
   return groups;
 }
 
-export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAyahIndex, onAyahIndexChange }: SwipeWBWViewProps) {
+export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAyahIndex, onAyahIndexChange, translationMap }: SwipeWBWViewProps) {
   const [wbwData, setWbwData] = useState<Record<string, string[]> | null>(null);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
   const [slideDir, setSlideDir] = useState<"next" | "prev">("next");
@@ -238,8 +239,16 @@ export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAy
 
   function renderAyahContent(a: AyahInfo, groupsArr: WordGroup[] | null, isPrev: boolean) {
     const isSingle = isPrev;
+    const aVK = `${a.surah.number}:${a.numberInSurah}`;
+    const fullTranslation = translationMap?.get(aVK) || null;
     return (
       <div className={`swipe-ayah-card ${isSingle ? "swipe-ayah-card-prev" : ""}`}>
+        {fullTranslation && (
+          <div className="swipe-full-translation" dir="ltr">
+            <span className="swipe-ayah-verse-num">{aVK}</span>
+            {fullTranslation}
+          </div>
+        )}
         {groupsArr ? (
           groupsArr.map((group, gi) => (
             <div key={gi} className="swipe-word-row">
