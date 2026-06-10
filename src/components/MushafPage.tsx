@@ -93,10 +93,14 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
   const ttsAudioRef = useRef<HTMLAudioElement>(null);
   const [dataLoadingSlow, setDataLoadingSlow] = useState(false);
   const [ayahSheet, setAyahSheet] = useState<{ verseKey: string } | null>(null);
+  const [tappedGroupKey, setTappedGroupKey] = useState<string | null>(null);
+  const tappedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const dismissPopover = useCallback(() => {
     setWordPopover(null);
+    setTappedGroupKey(null);
     clearTimeout(popoverTimeoutRef.current);
+    clearTimeout(tappedTimeoutRef.current);
   }, []);
 
   useEffect(() => {
@@ -350,13 +354,16 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                     return (
                       <span
                         key={w.code}
-                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""}`}
+                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${tappedGroupKey === String(w.code) ? "word-tapped" : ""}`}
                         style={{ fontFamily: `"${w.font}", serif` }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onVerseClick?.(vk);
                           if (mlTooltip) {
                             setWordPopover({ text: mlTooltip, verseKey: vk, el: e.currentTarget });
+                            setTappedGroupKey(String(w.code));
+                            clearTimeout(tappedTimeoutRef.current);
+                            tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
                           }
                         }}
                         onContextMenu={(e) => {
@@ -388,6 +395,27 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
       const vk = ayahSheet.verseKey;
       const words = verseWordsMap.get(vk)?.filter((w) => w.type === "word") || [];
       const translation = translationMap?.get(vk);
+      const sheetGroups: { words: typeof words; ml: string | null }[] = [];
+      let i = 0;
+      while (i < words.length) {
+        const w = words[i];
+        const ml = wbwData?.[vk]?.[w.position - 1] || null;
+        if (ml) {
+          const groupWords = [w];
+          let j = i + 1;
+          while (j < words.length) {
+            const nextMl = wbwData?.[vk]?.[words[j].position - 1] || null;
+            if (nextMl) break;
+            groupWords.push(words[j]);
+            j++;
+          }
+          sheetGroups.push({ words: groupWords, ml });
+          i = j;
+        } else {
+          sheetGroups.push({ words: [w], ml: null });
+          i++;
+        }
+      }
       ayahSheetContent = (
         <div className="ayah-sheet-backdrop" onClick={() => setAyahSheet(null)}>
           <div className="ayah-sheet" onClick={(e) => e.stopPropagation()}>
@@ -405,13 +433,17 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
             )}
             <div className="ayah-sheet-divider" />
             <div className="ayah-sheet-words">
-              {words.map((w, i) => {
-                const ml = wbwData?.[vk]?.[w.position - 1] || null;
+              {sheetGroups.map((g, i) => {
+                const groupMl = g.ml || findWbwMeaning(wbwData, vk, g.words[g.words.length - 1].position);
                 return (
                   <div key={i} className="ayah-sheet-word-row">
-                    <span className="ayah-sheet-ml">{ml || ""}</span>
+                    <span className="ayah-sheet-ml">{groupMl || ""}</span>
                     <span className="ayah-sheet-col" />
-                    <span className="ayah-sheet-arabic" dir="rtl" style={{ fontFamily: `"${w.font}", serif` }}>{w.char}</span>
+                    <span className="ayah-sheet-arabic">
+                      {[...g.words].reverse().map((gw, j) => (
+                        <span key={j} style={{ fontFamily: `"${gw.font}", serif` }}>{gw.char}{j < g.words.length - 1 ? " " : ""}</span>
+                      ))}
+                    </span>
                   </div>
                 );
               })}
@@ -432,7 +464,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
               {line.groups.map((group) => {
                 if (group.mlText) {
                   return (
-                    <span key={group.key} className="wbw-group">
+                    <span key={group.key} className={`wbw-group ${tappedGroupKey === group.key ? "wbw-group-tapped" : ""}`}>
                       <span className="wbw-words-row">
                         {group.words.map((w) => {
                           const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
@@ -440,12 +472,15 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                           return (
                             <span
                               key={w.code}
-                              className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""}`}
+                              className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""} ${tappedGroupKey === group.key ? "word-tapped" : ""}`}
                               style={{ fontFamily: `"${w.font}", serif` }}
                               onClick={(e) => {
                                 if (w.verse_key) {
                                   onVerseClick?.(w.verse_key);
                                   setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
+                                  setTappedGroupKey(group.key);
+                                  clearTimeout(tappedTimeoutRef.current);
+                                  tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
                                 }
                               }}
                               onContextMenu={(e) => {
@@ -501,7 +536,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                 return (
                   <span
                     key={w.code}
-                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""}`}
+                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${tappedGroupKey === String(w.code) ? "word-tapped" : ""}`}
                     style={{ fontFamily: `"${w.font}", serif` }}
                     onClick={(e) => {
                       if (w.verse_key) {
@@ -509,6 +544,9 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                         if (mlText) {
                           setWordPopover({ text: mlText, verseKey: w.verse_key, el: e.currentTarget });
                         }
+                        setTappedGroupKey(String(w.code));
+                        clearTimeout(tappedTimeoutRef.current);
+                        tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
                       }
                     }}
                     onContextMenu={(e) => {
@@ -569,13 +607,16 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                 return (
                   <span
                     key={word.code}
-                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""}`}
+                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${tappedGroupKey === String(word.code) ? "word-tapped" : ""}`}
                     style={{ fontFamily: `"${word.font}", serif` }}
                     onClick={(e) => {
                       if (word.verse_key) {
                         onVerseClick?.(word.verse_key);
                         if (mlTooltip) {
                           setWordPopover({ text: mlTooltip, verseKey: word.verse_key, el: e.currentTarget });
+                          setTappedGroupKey(String(word.code));
+                          clearTimeout(tappedTimeoutRef.current);
+                          tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
                         }
                       }
                     }}
