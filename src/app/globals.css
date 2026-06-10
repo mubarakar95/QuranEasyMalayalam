@@ -424,32 +424,58 @@ body {
   justify-content: center;
   font-size: 1.25rem;
   vertical-align: baseline;
-  color: var(--foreground);
-  opacity: 0.6;
+  color: transparent;
+  -webkit-text-stroke: 1px #1a7a3a;
+  paint-order: stroke fill;
+  opacity: 0.8;
   padding: 0.1em 0.15em;
   cursor: pointer;
-  transition: opacity 0.15s, background-color 0.15s, box-shadow 0.15s;
+  transition: opacity 0.15s, background 0.15s;
   direction: ltr;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.08) 0%, transparent 70%);
+  background: linear-gradient(to bottom, #c0392b 0%, #d4553a 20%, #27ae60 45%, #27ae60 55%, #d4553a 80%, #c0392b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
   border-radius: 50%;
   line-height: 1;
 }
 
 .mushaf-end-marker:hover {
-  opacity: 0.85;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.12) 0%, transparent 70%);
+  opacity: 1;
+  background: linear-gradient(to bottom, #e74c3c 0%, #f0604a 20%, #2ecc71 45%, #2ecc71 55%, #f0604a 80%, #e74c3c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.dark .mushaf-end-marker {
+  opacity: 0.8;
+  background: linear-gradient(to bottom, #e74c3c 0%, #f0604a 20%, #2ecc71 45%, #2ecc71 55%, #f0604a 80%, #e74c3c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.dark .mushaf-end-marker:hover {
+  opacity: 1;
+  background: linear-gradient(to bottom, #ff6b5a 0%, #ff8070 20%, #58d68d 45%, #58d68d 55%, #ff8070 80%, #ff6b5a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .mushaf-end-marker.highlighted {
   opacity: 1;
   color: #3b82f6;
+  -webkit-text-stroke: 0;
   background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+  -webkit-background-clip: unset;
+  background-clip: unset;
   box-shadow: 0 0 6px rgba(59, 130, 246, 0.2);
 }
 
 .dark .mushaf-end-marker.highlighted {
   color: #60a5fa;
+  -webkit-text-stroke: 0;
   background: radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%);
+  -webkit-background-clip: unset;
+  background-clip: unset;
   box-shadow: 0 0 6px rgba(96, 165, 250, 0.2);
 }
 
