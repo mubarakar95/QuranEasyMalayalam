@@ -472,7 +472,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                           return (
                             <span
                               key={w.code}
-                              className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""} ${tappedGroupKey === group.key ? "word-tapped" : ""}`}
+                              className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""}`}
                               style={{ fontFamily: `"${w.font}", serif` }}
                               onClick={(e) => {
                                 if (w.verse_key) {
