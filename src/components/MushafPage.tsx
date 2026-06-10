@@ -46,6 +46,55 @@ function findWbwMeaning(wbwData: Record<string, string[]> | null, verseKey: stri
   return null;
 }
 
+function getWordMeaning(
+  w: PageLine["words"][0],
+  wbwData: Record<string, string[]> | null,
+  wordByWordMap: Map<number, string>,
+  showWordByWord: boolean,
+): string | null {
+  if (showWordByWord) {
+    return wordByWordMap.get(w.code) ?? null;
+  }
+  return wbwData && w.type === "word" && w.verse_key
+    ? findWbwMeaning(wbwData, w.verse_key, w.position)
+    : null;
+}
+
+function findAdjacentGroup(
+  allWords: PageLine["words"],
+  tappedCode: number,
+  wbwData: Record<string, string[]> | null,
+  wordByWordMap: Map<number, string>,
+  showWordByWord: boolean,
+): Set<number> {
+  const idx = allWords.findIndex((w) => w.code === tappedCode);
+  if (idx === -1) return new Set([tappedCode]);
+
+  const tappedMl = getWordMeaning(allWords[idx], wbwData, wordByWordMap, showWordByWord);
+  if (!tappedMl) return new Set([tappedCode]);
+
+  const group = new Set<number>([tappedCode]);
+  for (let i = idx - 1; i >= 0; i--) {
+    const w = allWords[i];
+    if (w.type !== "word") break;
+    if (getWordMeaning(w, wbwData, wordByWordMap, showWordByWord) === tappedMl) {
+      group.add(w.code);
+    } else {
+      break;
+    }
+  }
+  for (let i = idx + 1; i < allWords.length; i++) {
+    const w = allWords[i];
+    if (w.type !== "word") break;
+    if (getWordMeaning(w, wbwData, wordByWordMap, showWordByWord) === tappedMl) {
+      group.add(w.code);
+    } else {
+      break;
+    }
+  }
+  return group;
+}
+
 function groupWbwWords(
   words: PageLine["words"],
   wbwMap: Map<number, string>,
@@ -72,7 +121,12 @@ function groupWbwWords(
         groupWords.push(words[j]);
         j++;
       }
-      groups.push({ key: `g-${w.code}`, words: groupWords, mlText: ml, verseKey: w.verse_key ?? null });
+      const last = groups[groups.length - 1];
+      if (last && last.mlText === ml && last.verseKey === w.verse_key) {
+        last.words.push(...groupWords);
+      } else {
+        groups.push({ key: `g-${w.code}`, words: groupWords, mlText: ml, verseKey: w.verse_key ?? null });
+      }
       i = j;
     } else {
       groups.push({ key: `s-${w.code}`, words: [w], mlText: null, verseKey: w.verse_key ?? null });
@@ -93,12 +147,12 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
   const ttsAudioRef = useRef<HTMLAudioElement>(null);
   const [dataLoadingSlow, setDataLoadingSlow] = useState(false);
   const [ayahSheet, setAyahSheet] = useState<{ verseKey: string } | null>(null);
-  const [tappedGroupKey, setTappedGroupKey] = useState<string | null>(null);
+  const [tappedWordCodes, setTappedWordCodes] = useState<Set<number> | null>(null);
   const tappedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const dismissPopover = useCallback(() => {
     setWordPopover(null);
-    setTappedGroupKey(null);
+    setTappedWordCodes(null);
     clearTimeout(popoverTimeoutRef.current);
     clearTimeout(tappedTimeoutRef.current);
   }, []);
@@ -237,6 +291,8 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     }));
   }, [showWordByWord, wordByWordMap, lines]);
 
+  const flatWords = useMemo(() => lines.flatMap((l) => l.words), [lines]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] px-4">
@@ -351,19 +407,20 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                       );
                     }
 
+                    const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
+
                     return (
                       <span
                         key={w.code}
-                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${tappedGroupKey === String(w.code) ? "word-tapped" : ""}`}
+                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${isWordTapped ? "word-tapped" : ""}`}
                         style={{ fontFamily: `"${w.font}", serif` }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onVerseClick?.(vk);
                           if (mlTooltip) {
                             setWordPopover({ text: mlTooltip, verseKey: vk, el: e.currentTarget });
-                            setTappedGroupKey(String(w.code));
+                            setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
                             clearTimeout(tappedTimeoutRef.current);
-                            tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
+                            tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
                           }
                         }}
                         onContextMenu={(e) => {
@@ -463,8 +520,10 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
             <div className="mushaf-line wbw-active">
               {line.groups.map((group) => {
                 if (group.mlText) {
-                  return (
-                    <span key={group.key} className={`wbw-group ${tappedGroupKey === group.key ? "wbw-group-tapped" : ""}`}>
+                    const isGroupTapped = tappedWordCodes !== null && group.words.some((w) => tappedWordCodes.has(w.code));
+
+                    return (
+                    <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""}`}>
                       <span className="wbw-words-row">
                         {group.words.map((w) => {
                           const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
@@ -476,11 +535,10 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                               style={{ fontFamily: `"${w.font}", serif` }}
                               onClick={(e) => {
                                 if (w.verse_key) {
-                                  onVerseClick?.(w.verse_key);
                                   setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
-                                  setTappedGroupKey(group.key);
+                                  setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
                                   clearTimeout(tappedTimeoutRef.current);
-                                  tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
+                                  tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 1000);
                                 }
                               }}
                               onContextMenu={(e) => {
@@ -496,7 +554,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                       </span>
                       <span className="wbw-ml">{group.mlText}</span>
                     </span>
-                  );
+                    );
                 }
                 const w = group.words[0];
                 const isVerseHighlighted = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
@@ -532,21 +590,21 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                 }
 
                 const mlText = w.verse_key ? findWbwMeaning(wbwData, w.verse_key, w.position) : null;
+                const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
 
                 return (
                   <span
                     key={w.code}
-                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${tappedGroupKey === String(w.code) ? "word-tapped" : ""}`}
+                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${isWordTapped ? "word-tapped" : ""}`}
                     style={{ fontFamily: `"${w.font}", serif` }}
                     onClick={(e) => {
                       if (w.verse_key) {
-                        onVerseClick?.(w.verse_key);
                         if (mlText) {
                           setWordPopover({ text: mlText, verseKey: w.verse_key, el: e.currentTarget });
+                          setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
+                          clearTimeout(tappedTimeoutRef.current);
+                          tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
                         }
-                        setTappedGroupKey(String(w.code));
-                        clearTimeout(tappedTimeoutRef.current);
-                        tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
                       }
                     }}
                     onContextMenu={(e) => {
@@ -603,20 +661,20 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                 const mlTooltip = wbwData && word.type === "word" && word.verse_key
                   ? findWbwMeaning(wbwData, word.verse_key, word.position)
                   : null;
+                const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(word.code);
 
                 return (
                   <span
                     key={word.code}
-                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${tappedGroupKey === String(word.code) ? "word-tapped" : ""}`}
+                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${isWordTapped ? "word-tapped" : ""}`}
                     style={{ fontFamily: `"${word.font}", serif` }}
                     onClick={(e) => {
                       if (word.verse_key) {
-                        onVerseClick?.(word.verse_key);
                         if (mlTooltip) {
                           setWordPopover({ text: mlTooltip, verseKey: word.verse_key, el: e.currentTarget });
-                          setTappedGroupKey(String(word.code));
+                          setTappedWordCodes(findAdjacentGroup(flatWords, word.code, wbwData, wordByWordMap, showWordByWord));
                           clearTimeout(tappedTimeoutRef.current);
-                          tappedTimeoutRef.current = setTimeout(() => setTappedGroupKey(null), 800);
+                          tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
                         }
                       }
                     }}

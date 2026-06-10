@@ -386,24 +386,36 @@ body {
 
 .mushaf-word.word-tapped {
   background-color: rgba(251, 191, 36, 0.35) !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mushaf-word.word-tapped:not(.mushaf-word.word-tapped + .mushaf-word.word-tapped) {
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+
+.mushaf-word.word-tapped:has(+ :not(.mushaf-word.word-tapped)) {
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+.mushaf-word.word-tapped:not(.mushaf-word.word-tapped + .mushaf-word.word-tapped):has(+ :not(.mushaf-word.word-tapped)) {
   border-radius: 3px;
-  outline: 2px solid rgba(251, 191, 36, 0.5);
-  outline-offset: 1px;
+  background-color: rgba(251, 191, 36, 0.35) !important;
 }
 
 .wbw-group-tapped {
   background: rgba(251, 191, 36, 0.15) !important;
-  outline: 3px solid rgba(251, 191, 36, 0.7);
-  outline-offset: 1px;
   border-color: rgba(251, 191, 36, 0.6) !important;
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.6), 0 0 12px rgba(251, 191, 36, 0.3);
 }
 
 .dark .wbw-group-tapped {
   background: rgba(251, 146, 60, 0.25) !important;
-  outline: 3px solid rgba(251, 146, 60, 0.7);
   border-color: rgba(251, 146, 60, 0.6) !important;
-  box-shadow: 0 0 12px rgba(251, 146, 60, 0.4);
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.6), 0 0 12px rgba(251, 146, 60, 0.3);
 }
 
 .mushaf-end-marker {
