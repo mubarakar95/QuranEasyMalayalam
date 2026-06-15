@@ -11,6 +11,7 @@ import { PageData as ApiPageData } from "@/lib/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import QuranPage from "@/components/QuranPage";
 import SwipeWBWView from "@/components/SwipeWBWView";
+import ContextStrip from "@/components/ContextStrip";
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -209,6 +210,7 @@ export default function Home() {
   const ayahs = pageData?.ayahs || [];
   const surahName = pageData?.ayahs[0]?.surah.englishName;
   const juzNumber = pageData?.ayahs[0]?.juz;
+  const rukuNumber = pageData?.ayahs[0]?.ruku;
 
   return (
     <ErrorBoundary>
@@ -333,6 +335,12 @@ export default function Home() {
         twoPageMode={twoPageMode}
         mlFontSize={mlFontSize}
         onMlFontSizeChange={setMlFontSize}
+      />
+
+      <ContextStrip
+        rukuNumber={rukuNumber}
+        ayahNumber={ayahs[0]?.numberInSurah}
+        juzNumber={juzNumber}
       />
 
       <main className={`flex-1 ${audioVisible ? "pb-28" : "pb-0"}`}>

@@ -106,6 +106,31 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.context-strip {
+  background: var(--surface);
+  transition: background 0.2s;
+}
+
+.context-strip-theme {
+  color: var(--foreground);
+}
+
+.context-strip-surah {
+  color: var(--foreground);
+}
+
+.context-strip-ruku {
+  color: var(--muted);
+}
+
+.context-strip-sep {
+  color: var(--muted);
+}
+
+.context-strip-info {
+  color: var(--muted);
+}
+
 .nav-btn {
   display: flex;
   align-items: center;
