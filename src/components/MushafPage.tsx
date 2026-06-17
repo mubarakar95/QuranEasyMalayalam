@@ -624,15 +624,29 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
         ))
         : (() => {
         let currentRuku = 0;
+        let currentSurah = 0;
         return lines.map((line) => {
         const lineFirstWord = line.words.find(w => w.type === "word" && w.verse_key);
-        const lineRuku = lineFirstWord?.verse_key ? verseRukuMap?.get(lineFirstWord.verse_key) : undefined;
+        const verseKey = lineFirstWord?.verse_key;
+        const lineRuku = verseKey ? verseRukuMap?.get(verseKey) : undefined;
+        const lineSurah = verseKey ? parseInt(verseKey.split(':')[0]) : undefined;
         const showRukuBoundary = lineRuku && lineRuku !== currentRuku;
+        const showSurahBoundary = lineSurah && lineSurah !== currentSurah;
         if (lineRuku) currentRuku = lineRuku;
+        if (lineSurah) currentSurah = lineSurah;
         const rukuInfo = lineRuku ? RUKU_DATA[lineRuku] : undefined;
 
         return (
           <div key={line.line}>
+            {showSurahBoundary && !showRukuBoundary && rukuInfo && (
+              <div className="ruku-boundary">
+                <div className="ruku-boundary-line" />
+                <span className="ruku-boundary-label">
+                  {rukuInfo.surahMl}
+                </span>
+                <div className="ruku-boundary-line" />
+              </div>
+            )}
             {showRukuBoundary && rukuInfo && (
               <div className="ruku-boundary">
                 <div className="ruku-boundary-line" />
