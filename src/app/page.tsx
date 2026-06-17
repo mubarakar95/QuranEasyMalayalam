@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import MushafPage from "@/components/MushafPage";
 import AudioPlayer from "@/components/AudioPlayer";
 import Navigation from "@/components/Navigation";
@@ -212,6 +212,15 @@ export default function Home() {
   const juzNumber = pageData?.ayahs[0]?.juz;
   const rukuNumber = pageData?.ayahs[0]?.ruku;
 
+  const verseRukuMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const ayah of ayahs) {
+      const key = `${ayah.surah.number}:${ayah.numberInSurah}`;
+      map.set(key, ayah.ruku);
+    }
+    return map;
+  }, [ayahs]);
+
   return (
     <ErrorBoundary>
     <div className="min-h-screen flex flex-col">
@@ -367,6 +376,7 @@ export default function Home() {
                       onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
                       showTranslation={showTranslation}
                       translationMap={translationMapRight}
+                      verseRukuMap={verseRukuMap}
                     />
                   </div>
                   <div className="mushaf-spine-line" />
@@ -380,6 +390,7 @@ export default function Home() {
                   onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
                   showTranslation={showTranslation}
                   translationMap={translationMap}
+                  verseRukuMap={verseRukuMap}
                 />
               </div>
             </div>
@@ -393,6 +404,7 @@ export default function Home() {
               showTranslation={showTranslation}
               translationMap={translationMap}
               showWordByWord={showWordByWord}
+              verseRukuMap={verseRukuMap}
             />
           </div>
           {error && (
