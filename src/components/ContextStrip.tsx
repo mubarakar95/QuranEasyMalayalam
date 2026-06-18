@@ -18,26 +18,16 @@ export default function ContextStrip({
   const ruku = RUKU_DATA[rukuNumber];
   if (!ruku) return null;
 
-  const hasTheme = !!ruku.theme;
-
   return (
     <div className="context-strip max-w-[600px] mx-auto px-4 py-1.5 text-center border-b border-[var(--border)]">
       <div className="flex items-center justify-center gap-2 text-[11px] leading-tight">
-        {hasTheme ? (
-          <span className="context-strip-theme font-medium text-[var(--foreground)]">
-            {ruku.theme}
+        <span className="context-strip-surah font-medium text-[var(--foreground)]">
+          {ruku.surahMl}
+        </span>
+        {ruku.surahRukuTotal > 1 && (
+          <span className="context-strip-ruku text-[var(--muted)]">
+            {ruku.surahRukuIdx}/{ruku.surahRukuTotal}
           </span>
-        ) : (
-          <>
-            <span className="context-strip-surah font-medium text-[var(--foreground)]">
-              {ruku.surahMl}
-            </span>
-            {ruku.surahRukuTotal > 1 && (
-              <span className="context-strip-ruku text-[var(--muted)]">
-                {ruku.surahRukuIdx}/{ruku.surahRukuTotal} റുക്ഉ്
-              </span>
-            )}
-          </>
         )}
         <span className="context-strip-sep text-[var(--muted)]">·</span>
         <span className="context-strip-info text-[var(--muted)]">

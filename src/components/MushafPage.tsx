@@ -651,7 +651,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
               <div className="ruku-boundary">
                 <div className="ruku-boundary-line" />
                 <span className="ruku-boundary-label">
-                  {rukuInfo.theme || `${rukuInfo.surahMl} ${rukuInfo.surahRukuTotal > 1 ? `${rukuInfo.surahRukuIdx}/${rukuInfo.surahRukuTotal}` : ''}`}
+                  {`${rukuInfo.surahMl} ${rukuInfo.surahRukuTotal > 1 ? `${rukuInfo.surahRukuIdx}/${rukuInfo.surahRukuTotal}` : ''}`}
                 </span>
                 <div className="ruku-boundary-line" />
               </div>
