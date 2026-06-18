@@ -11,7 +11,6 @@ import { PageData as ApiPageData } from "@/lib/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import QuranPage from "@/components/QuranPage";
 import SwipeWBWView from "@/components/SwipeWBWView";
-import ContextStrip from "@/components/ContextStrip";
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -210,17 +209,6 @@ export default function Home() {
   const ayahs = pageData?.ayahs || [];
   const surahName = pageData?.ayahs[0]?.surah.englishName;
   const juzNumber = pageData?.ayahs[0]?.juz;
-  const rukuNumber = pageData?.ayahs[0]?.ruku;
-
-  const verseRukuMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const ayah of ayahs) {
-      const key = `${ayah.surah.number}:${ayah.numberInSurah}`;
-      map.set(key, ayah.ruku);
-    }
-    return map;
-  }, [ayahs]);
-
   return (
     <ErrorBoundary>
     <div className="min-h-screen flex flex-col">
@@ -346,12 +334,6 @@ export default function Home() {
         onMlFontSizeChange={setMlFontSize}
       />
 
-      <ContextStrip
-        rukuNumber={rukuNumber}
-        ayahNumber={ayahs[0]?.numberInSurah}
-        juzNumber={juzNumber}
-      />
-
       <main className={`flex-1 ${audioVisible ? "pb-28" : "pb-0"}`}>
         <div style={{ display: simpleMode ? "none" : "block" }}>
           <div style={{ display: showSwipeWBW ? "block" : "none" }}>
@@ -376,7 +358,6 @@ export default function Home() {
                       onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
                       showTranslation={showTranslation}
                       translationMap={translationMapRight}
-                      verseRukuMap={verseRukuMap}
                     />
                   </div>
                   <div className="mushaf-spine-line" />
@@ -390,7 +371,6 @@ export default function Home() {
                   onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
                   showTranslation={showTranslation}
                   translationMap={translationMap}
-                  verseRukuMap={verseRukuMap}
                 />
               </div>
             </div>
@@ -404,7 +384,6 @@ export default function Home() {
               showTranslation={showTranslation}
               translationMap={translationMap}
               showWordByWord={showWordByWord}
-              verseRukuMap={verseRukuMap}
             />
           </div>
           {error && (

@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { PageLine, loadPageFont } from "@/lib/qcf4";
 import { HighlightWord } from "@/lib/types";
 import { fetchMalayalamWBW } from "@/lib/malayalam-wbw";
-import { RUKU_DATA } from "@/lib/ruku-data";
 
 interface MushafPageProps {
   currentPage: number;
@@ -14,7 +13,6 @@ interface MushafPageProps {
   showTranslation?: boolean;
   translationMap?: Map<string, string> | null;
   showWordByWord?: boolean;
-  verseRukuMap?: Map<string, number>;
 }
 
 function getWordGlobalIndex(words: PageLine["words"], verseKey: string, wordIndex: number): number | null {
@@ -138,7 +136,7 @@ function groupWbwWords(
   return groups;
 }
 
-export default function MushafPage({ currentPage, highlightVerseKey, highlightWord, onVerseClick, showTranslation = false, translationMap = null, showWordByWord = false, verseRukuMap }: MushafPageProps) {
+export default function MushafPage({ currentPage, highlightVerseKey, highlightWord, onVerseClick, showTranslation = false, translationMap = null, showWordByWord = false }: MushafPageProps) {
   const [lines, setLines] = useState<PageLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -622,40 +620,9 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
             </div>
           </div>
         ))
-        : (() => {
-        let currentRuku = 0;
-        let currentSurah = 0;
-        return lines.map((line) => {
-        const lineFirstWord = line.words.find(w => w.type === "word" && w.verse_key);
-        const verseKey = lineFirstWord?.verse_key;
-        const lineRuku = verseKey ? verseRukuMap?.get(verseKey) : undefined;
-        const lineSurah = verseKey ? parseInt(verseKey.split(':')[0]) : undefined;
-        const showRukuBoundary = lineRuku && lineRuku !== currentRuku;
-        const showSurahBoundary = lineSurah && lineSurah !== currentSurah;
-        if (lineRuku) currentRuku = lineRuku;
-        if (lineSurah) currentSurah = lineSurah;
-        const rukuInfo = lineRuku ? RUKU_DATA[lineRuku] : undefined;
-
+        : lines.map((line) => {
         return (
           <div key={line.line}>
-            {showSurahBoundary && !showRukuBoundary && rukuInfo && (
-              <div className="ruku-boundary">
-                <div className="ruku-boundary-line" />
-                <span className="ruku-boundary-label">
-                  {rukuInfo.surahMl}
-                </span>
-                <div className="ruku-boundary-line" />
-              </div>
-            )}
-            {showRukuBoundary && rukuInfo && (
-              <div className="ruku-boundary">
-                <div className="ruku-boundary-line" />
-                <span className="ruku-boundary-label">
-                  {`${rukuInfo.surahMl} ${rukuInfo.surahRukuTotal > 1 ? `${rukuInfo.surahRukuIdx}/${rukuInfo.surahRukuTotal}` : ''}`}
-                </span>
-                <div className="ruku-boundary-line" />
-              </div>
-            )}
             <div className={`mushaf-line ${showWordByWord && wordByWordMap.size > 0 ? "wbw-active" : ""}`}>
               {line.words.map((word) => {
                 const isVerseHighlighted = highlightVerseKey !== null && word.verse_key === highlightVerseKey;
@@ -725,8 +692,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
             </div>
           </div>
         );
-      });
-      })()}
+      })}
     </div>
 
     {ayahSheetContent}
