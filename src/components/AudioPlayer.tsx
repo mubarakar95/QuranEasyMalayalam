@@ -408,7 +408,7 @@ export default function AudioPlayer({
               stop();
               onAudioModeChange?.(next);
             }}
-            className="px-1.5 py-[1px] rounded text-[10px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
+            className="px-2 py-1 rounded text-[11px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
             aria-label="Audio mode"
           >
             {shortModeLabel(audioMode)}
