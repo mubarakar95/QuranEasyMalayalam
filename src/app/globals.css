@@ -352,14 +352,14 @@ body {
   justify-content: center;
   flex-wrap: nowrap;
   align-items: baseline;
-  line-height: 2.8;
+  line-height: calc(2.8 * var(--lh-scale, 1));
   gap: 0;
 }
 
 .mushaf-line.wbw-active {
   flex-wrap: nowrap;
   gap: 0;
-  line-height: 2.8;
+  line-height: calc(2.8 * var(--lh-scale, 1));
 }
 
 .mushaf-word {
@@ -493,28 +493,29 @@ body {
   justify-content: center;
   font-size: 1.25rem;
   vertical-align: baseline;
-  color: var(--foreground);
-  opacity: 0.6;
+  color: #c0392b;
+  opacity: 0.7;
   padding: 0.1em 0.15em;
   cursor: pointer;
   transition: opacity 0.15s, background-color 0.15s, box-shadow 0.15s;
   direction: ltr;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(192, 57, 43, 0.15) 0%, transparent 70%);
   border-radius: 50%;
   line-height: 1;
 }
 
 .mushaf-end-marker:hover {
-  opacity: 0.85;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.12) 0%, transparent 70%);
+  opacity: 0.9;
+  background: radial-gradient(circle, rgba(192, 57, 43, 0.22) 0%, transparent 70%);
 }
 
 .dark .mushaf-end-marker {
-  opacity: 0.6;
+  color: #e74c3c;
+  opacity: 0.7;
 }
 
 .dark .mushaf-end-marker:hover {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .mushaf-end-marker.highlighted {
@@ -671,7 +672,7 @@ body {
 }
 
 .mushaf-spread .mushaf-line {
-  line-height: 2.5;
+  line-height: calc(2.5 * var(--lh-scale, 1));
 }
 
 .mushaf-spread .mushaf-word.wbw-enabled {
@@ -715,7 +716,7 @@ body {
   flex-wrap: wrap;
   justify-content: center;
   direction: rtl;
-  line-height: 2.2;
+  line-height: calc(2.2 * var(--lh-scale, 1));
   gap: 0;
   max-width: 100%;
 }
@@ -862,7 +863,7 @@ body {
   }
 
   .mushaf-spread .mushaf-line {
-    line-height: 2.2;
+    line-height: calc(2.2 * var(--lh-scale, 1));
   }
 
   .mushaf-spread .mushaf-word.wbw-enabled {
@@ -894,7 +895,7 @@ body {
   }
 
   .mushaf-line {
-    line-height: 2.2;
+    line-height: calc(2.2 * var(--lh-scale, 1));
   }
 
   .mushaf-word.wbw-enabled {
@@ -908,7 +909,7 @@ body {
   .mushaf-line.wbw-active {
     flex-wrap: wrap;
     gap: 0.1rem;
-    line-height: 2.2;
+    line-height: calc(2.2 * var(--lh-scale, 1));
   }
 }
 

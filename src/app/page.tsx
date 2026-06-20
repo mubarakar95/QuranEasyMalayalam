@@ -34,6 +34,7 @@ export default function Home() {
   const [showSwipeWBW, setShowSwipeWBW] = useState(false);
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
   const [audioVisible, setAudioVisible] = useState(true);
+  const [lineHeight, setLineHeight] = useState(100);
 
   useEffect(() => {
     try {
@@ -58,6 +59,8 @@ export default function Home() {
       if (savedMlSize >= 60 && savedMlSize <= 200) setMlFontSize(savedMlSize);
       const savedArSize = parseInt(localStorage.getItem("quran-ar-font-size") || "100");
       if (savedArSize >= 60 && savedArSize <= 200) setArFontSize(savedArSize);
+      const savedLineHeight = parseInt(localStorage.getItem("quran-line-height") || "100");
+      if (savedLineHeight >= 60 && savedLineHeight <= 200) setLineHeight(savedLineHeight);
     } catch {
       /* localStorage unavailable (e.g. Safari private) */
     }
@@ -133,6 +136,11 @@ export default function Home() {
     document.documentElement.style.setProperty("--ar-font-scale", `${arFontSize / 100}`);
     try { localStorage.setItem("quran-ar-font-size", arFontSize.toString()); } catch {}
   }, [arFontSize]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--lh-scale", `${lineHeight / 100}`);
+    try { localStorage.setItem("quran-line-height", lineHeight.toString()); } catch {}
+  }, [lineHeight]);
 
   useEffect(() => {
     setCurrentAyahIndex(0);
@@ -429,6 +437,8 @@ export default function Home() {
       onMlFontSizeChange={setMlFontSize}
       arFontSize={arFontSize}
       onArFontSizeChange={setArFontSize}
+      lineHeight={lineHeight}
+      onLineHeightChange={setLineHeight}
       surahName={surahName}
       juzNumber={juzNumber}
     />

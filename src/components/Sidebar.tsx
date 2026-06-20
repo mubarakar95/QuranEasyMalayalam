@@ -22,6 +22,8 @@ interface SidebarProps {
   onMlFontSizeChange: (fn: (prev: number) => number) => void;
   arFontSize: number;
   onArFontSizeChange: (fn: (prev: number) => number) => void;
+  lineHeight: number;
+  onLineHeightChange: (fn: (prev: number) => number) => void;
   surahName?: string;
   juzNumber?: number;
 }
@@ -72,6 +74,8 @@ export default function Sidebar({
   onMlFontSizeChange,
   arFontSize,
   onArFontSizeChange,
+  lineHeight,
+  onLineHeightChange,
   surahName,
   juzNumber,
 }: SidebarProps) {
@@ -406,6 +410,39 @@ export default function Sidebar({
                     onClick={() => onMlFontSizeChange((s) => Math.min(200, s + 10))}
                     className="flex items-center justify-center w-8 h-8 rounded-full border border-[var(--border)] hover:bg-[var(--surface)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]"
                     aria-label="Increase font size"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-3 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-[var(--muted)]">Line Height</span>
+                  <span className="text-xs font-medium tabular-nums">{lineHeight}%</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => onLineHeightChange((s) => Math.max(60, s - 5))}
+                    className="flex items-center justify-center w-8 h-8 rounded-full border border-[var(--border)] hover:bg-[var(--surface)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]"
+                    aria-label="Decrease line height"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                    </svg>
+                  </button>
+                  <div className="flex-1 h-1 bg-[var(--surface)] rounded-full relative">
+                    <div
+                      className="absolute left-0 top-0 h-full bg-[var(--foreground)] rounded-full opacity-30"
+                      style={{ width: `${((lineHeight - 60) / 140) * 100}%` }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => onLineHeightChange((s) => Math.min(200, s + 5))}
+                    className="flex items-center justify-center w-8 h-8 rounded-full border border-[var(--border)] hover:bg-[var(--surface)] transition-colors text-[var(--muted)] hover:text-[var(--foreground)]"
+                    aria-label="Increase line height"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" />
