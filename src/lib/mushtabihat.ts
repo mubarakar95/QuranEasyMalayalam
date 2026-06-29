@@ -69,3 +69,41 @@ export function shuffle<T>(arr: T[]): T[] {
   }
   return a;
 }
+
+// ─── Bookmarks ───────────────────────────────────────────────────────────────
+
+const BOOKMARKS_KEY = "mushtabihat-bookmarks";
+
+export function getBookmarks(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function isBookmarked(pair: MushtabihatPair): boolean {
+  return getBookmarks().includes(pairKey(pair));
+}
+
+export function toggleBookmark(pair: MushtabihatPair): boolean {
+  const bookmarks = getBookmarks();
+  const key = pairKey(pair);
+  const idx = bookmarks.indexOf(key);
+  if (idx >= 0) {
+    bookmarks.splice(idx, 1);
+  } else {
+    bookmarks.push(key);
+  }
+  try { localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks)); } catch {}
+  return idx < 0;
+}
+
+function pairKey(p: MushtabihatPair): string {
+  return [p.ayah1, p.ayah2].sort().join("|");
+}
+
+export function getBookmarkedPairs(allPairs: MushtabihatPair[]): MushtabihatPair[] {
+  const bookmarks = new Set(getBookmarks());
+  return allPairs.filter((p) => bookmarks.has(pairKey(p)));
+}

@@ -8,10 +8,13 @@ import {
   filterByJuzRange,
   fetchPairTexts,
   shuffle,
+  isBookmarked,
+  toggleBookmark,
+  getBookmarkedPairs,
   type MushtabihatPair,
 } from "@/lib/mushtabihat";
 
-type View = "select" | "quiz";
+type View = "select" | "quiz" | "saved";
 
 export default function MushtabihatPage() {
   const router = useRouter();
@@ -28,6 +31,8 @@ export default function MushtabihatPage() {
   const [revealed, setRevealed] = useState(false);
   const [showingAyah1, setShowingAyah1] = useState(true);
   const [loadingText, setLoadingText] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [savedPairs, setSavedPairs] = useState<MushtabihatPair[]>([]);
 
   useEffect(() => {
     loadMushtabihat().then(setAllPairs);
@@ -73,6 +78,10 @@ export default function MushtabihatPage() {
     if (view === "quiz" && currentPair) loadTexts();
   }, [view, currentPair, loadTexts]);
 
+  useEffect(() => {
+    if (currentPair) setBookmarked(isBookmarked(currentPair));
+  }, [currentPair]);
+
   const handleReveal = () => setRevealed(true);
 
   const handleNext = () => {
@@ -117,9 +126,23 @@ export default function MushtabihatPage() {
             </svg>
           </button>
           <h1 className="text-lg font-semibold">Mushtabihat</h1>
-          <span className="ml-auto text-xs text-[var(--muted)]">
+          <span className="ml-auto text-xs text-[var(--muted)] mr-2">
             {currentIdx + 1} / {quizPairs.length}
           </span>
+          <button
+            onClick={() => {
+              if (currentPair) {
+                const added = toggleBookmark(currentPair);
+                setBookmarked(added);
+              }
+            }}
+            className="p-1.5 rounded-md hover:bg-[var(--surface)] transition-colors"
+            aria-label={bookmarked ? "Remove bookmark" : "Bookmark this pair"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill={bookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+            </svg>
+          </button>
         </div>
 
         {/* Progress */}
@@ -219,18 +242,87 @@ export default function MushtabihatPage() {
   // Select view
   return (
     <div className="max-w-lg mx-auto p-4 pb-20">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-4">
         <button onClick={() => router.back()} className="p-1.5 rounded-md hover:bg-[var(--surface)]">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
           </svg>
         </button>
-        <h1 className="text-lg font-semibold">Mushtabihat Tester</h1>
+        <h1 className="text-lg font-semibold">Mushtabihat</h1>
       </div>
 
-      <p className="text-xs text-[var(--muted)] mb-6 leading-relaxed">
-        Practice identifying similar-looking verses (مشتبهات) that are commonly confused during memorization. Select a juz range and test yourself.
-      </p>
+      {/* Tabs */}
+      <div className="flex gap-0.5 bg-[var(--surface)] rounded-lg p-0.5 mb-4">
+        {(["practice", "saved"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => {
+              if (tab === "saved") {
+                loadMushtabihat().then((pairs) => setSavedPairs(getBookmarkedPairs(pairs)));
+                setView("saved");
+              } else {
+                setView("select");
+              }
+            }}
+            className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
+              (view === "select" && tab === "practice") || (view === "saved" && tab === "saved")
+                ? "bg-[var(--foreground)] text-[var(--background)]"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            {tab === "practice" ? "Practice" : "Saved"}
+          </button>
+        ))}
+      </div>
+
+      {view === "saved" ? (
+        /* Saved pairs view */
+        savedPairs.length === 0 ? (
+          <div className="text-center py-12">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 mx-auto mb-3 text-[var(--muted)]">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+            </svg>
+            <p className="text-sm text-[var(--muted)]">No saved pairs yet</p>
+            <p className="text-xs text-[var(--muted)] mt-1">Bookmark pairs during practice to save them here</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {savedPairs.map((p) => (
+              <div key={`${p.ayah1}-${p.ayah2}`} className="p-3 rounded-lg bg-[var(--surface)]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] text-[var(--muted)]">
+                    {p.ayah1} ({SURAH_NAMES[p.surah1]?.englishName}) ↔ {p.ayah2} ({SURAH_NAMES[p.surah2]?.englishName})
+                  </span>
+                  <button
+                    onClick={() => {
+                      toggleBookmark(p);
+                      setSavedPairs((prev) => prev.filter((x) => x.ayah1 !== p.ayah1 || x.ayah2 !== p.ayah2));
+                    }}
+                    className="p-1 rounded hover:bg-[var(--background)] transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 text-[var(--muted)]">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
+                    </svg>
+                  </button>
+                </div>
+                {p.note && (
+                  <p className="text-[10px] text-[var(--muted)] leading-relaxed">{p.note}</p>
+                )}
+                {p.category && (
+                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] bg-[var(--background)] text-[var(--muted)]">
+                    {p.category.replace("_", " ")}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        /* Practice view */
+        <>
+          <p className="text-xs text-[var(--muted)] mb-6 leading-relaxed">
+            Practice identifying similar-looking verses (مشتبهات) that are commonly confused during memorization. Select a juz range and test yourself.
+          </p>
 
       {/* Juz range selector */}
       <div className="mb-6">
@@ -301,6 +393,8 @@ export default function MushtabihatPage() {
       >
         {loading ? "Loading..." : "Start Practice"}
       </button>
+      </>
+      )}
     </div>
   );
 }
