@@ -107,3 +107,125 @@ export function getBookmarkedPairs(allPairs: MushtabihatPair[]): MushtabihatPair
   const bookmarks = new Set(getBookmarks());
   return allPairs.filter((p) => bookmarks.has(pairKey(p)));
 }
+
+// ─── Hidden / Spam pairs ────────────────────────────────────────────────────
+
+const HIDDEN_KEY = "mushtabihat-hidden";
+
+export function getHiddenKeys(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(HIDDEN_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function isHidden(pair: MushtabihatPair): boolean {
+  return getHiddenKeys().includes(pairKey(pair));
+}
+
+export function toggleHidden(pair: MushtabihatPair): boolean {
+  const keys = getHiddenKeys();
+  const key = pairKey(pair);
+  const idx = keys.indexOf(key);
+  if (idx >= 0) {
+    keys.splice(idx, 1);
+  } else {
+    keys.push(key);
+  }
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(keys)); } catch {}
+  return idx < 0;
+}
+
+export function filterHidden(pairs: MushtabihatPair[]): MushtabihatPair[] {
+  const keys = new Set(getHiddenKeys());
+  return pairs.filter((p) => !keys.has(pairKey(p)));
+}
+
+export function getHiddenPairs(allPairs: MushtabihatPair[]): MushtabihatPair[] {
+  const keys = new Set(getHiddenKeys());
+  return allPairs.filter((p) => keys.has(pairKey(p)));
+}
+
+// ─── Supabase sync ──────────────────────────────────────────────────────────
+
+import { createClient } from "@/lib/supabase/client";
+
+export async function syncBookmarksToSupabase(userId: string) {
+  const supabase = createClient();
+  const keys = getBookmarks();
+  if (keys.length === 0) {
+    // Clear all remote bookmarks
+    await supabase.from("user_mushtabihat_bookmarks").delete().eq("user_id", userId);
+    return;
+  }
+
+  const rows = keys.map((key) => {
+    const [a1, a2] = key.split("|");
+    return { user_id: userId, ayah1: a1, ayah2: a2 };
+  });
+
+  await supabase.from("user_mushtabihat_bookmarks").delete().eq("user_id", userId);
+  const { error } = await supabase
+    .from("user_mushtabihat_bookmarks")
+    .upsert(rows, { onConflict: "user_id,ayah1,ayah2" });
+
+  if (error) console.error("Bookmark sync failed:", error);
+}
+
+export async function loadBookmarksFromSupabase(userId: string) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("user_mushtabihat_bookmarks")
+    .select("ayah1, ayah2");
+
+  if (!data) return;
+
+  const remoteKeys = new Set(data.map((r) => [r.ayah1, r.ayah2].sort().join("|")));
+  const localKeys = new Set(getBookmarks());
+  const merged = new Set([...localKeys, ...remoteKeys]);
+
+  try {
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...merged]));
+  } catch {}
+}
+
+// ─── Hidden pairs Supabase sync ─────────────────────────────────────────────
+
+export async function syncHiddenToSupabase(userId: string) {
+  const supabase = createClient();
+  const keys = getHiddenKeys();
+  if (keys.length === 0) {
+    await supabase.from("user_mushtabihat_hidden").delete().eq("user_id", userId);
+    return;
+  }
+
+  const rows = keys.map((key) => {
+    const [a1, a2] = key.split("|");
+    return { user_id: userId, ayah1: a1, ayah2: a2 };
+  });
+
+  await supabase.from("user_mushtabihat_hidden").delete().eq("user_id", userId);
+  const { error } = await supabase
+    .from("user_mushtabihat_hidden")
+    .upsert(rows, { onConflict: "user_id,ayah1,ayah2" });
+
+  if (error) console.error("Hidden sync failed:", error);
+}
+
+export async function loadHiddenFromSupabase(userId: string) {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("user_mushtabihat_hidden")
+    .select("ayah1, ayah2");
+
+  if (!data) return;
+
+  const remoteKeys = new Set(data.map((r) => [r.ayah1, r.ayah2].sort().join("|")));
+  const localKeys = new Set(getHiddenKeys());
+  const merged = new Set([...localKeys, ...remoteKeys]);
+
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...merged]));
+  } catch {}
+}
