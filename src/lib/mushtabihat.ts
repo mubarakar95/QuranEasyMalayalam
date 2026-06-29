@@ -179,15 +179,16 @@ export async function loadBookmarksFromSupabase(userId: string) {
     .from("user_mushtabihat_bookmarks")
     .select("ayah1, ayah2");
 
-  if (!data) return;
-
-  const remoteKeys = new Set(data.map((r) => [r.ayah1, r.ayah2].sort().join("|")));
+  const remoteKeys = new Set((data || []).map((r) => [r.ayah1, r.ayah2].sort().join("|")));
   const localKeys = new Set(getBookmarks());
   const merged = new Set([...localKeys, ...remoteKeys]);
 
   try {
     localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...merged]));
   } catch {}
+
+  // Always push merged data back to keep remote in sync
+  await syncBookmarksToSupabase(userId);
 }
 
 // ─── Hidden pairs Supabase sync ─────────────────────────────────────────────
@@ -219,13 +220,14 @@ export async function loadHiddenFromSupabase(userId: string) {
     .from("user_mushtabihat_hidden")
     .select("ayah1, ayah2");
 
-  if (!data) return;
-
-  const remoteKeys = new Set(data.map((r) => [r.ayah1, r.ayah2].sort().join("|")));
+  const remoteKeys = new Set((data || []).map((r) => [r.ayah1, r.ayah2].sort().join("|")));
   const localKeys = new Set(getHiddenKeys());
   const merged = new Set([...localKeys, ...remoteKeys]);
 
   try {
     localStorage.setItem(HIDDEN_KEY, JSON.stringify([...merged]));
   } catch {}
+
+  // Always push merged data back to keep remote in sync
+  await syncHiddenToSupabase(userId);
 }
