@@ -133,7 +133,14 @@ export default function MushtabihatPage() {
   };
 
   function stripDiacritics(text: string): string {
-    return text.replace(/[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0610-\u061A]/g, "").replace(/\s+/g, " ").trim();
+    return text
+      .replace(/[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0610-\u061A]/g, "")
+      .replace(/ٱ/g, "ا")  // normalize hamza-wasl to regular alef
+      .replace(/أ/g, "ا").replace(/إ/g, "ا").replace(/آ/g, "ا")  // normalize alef variants
+      .replace(/ة/g, "ه")  // normalize ta-marbuta to ha
+      .replace(/ى/g, "ي")  // normalize alef-maksura to ya
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   const runSearch = async () => {
