@@ -193,8 +193,7 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
 
       {/* Flash card */}
       <div
-        className="relative w-full cursor-pointer"
-        style={{ minHeight: "14rem" }}
+        className="relative w-full cursor-pointer h-56"
         onClick={() => setFlipped(!flipped)}
       >
         <div
