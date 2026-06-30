@@ -264,7 +264,7 @@ export default function LearnPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-[var(--muted)]">
-            {scope.value === 0 ? "All Words" : scope.type === "surah" ? `Surah ${scope.value}` : `Juz ${scope.value}`}
+            {scope.value === 0 ? "All Words" : scope.type === "surah" ? `Surah ${scope.value}` : scope.type === "page" ? `Page ${scope.value}` : `Juz ${scope.value}`}
           </span>
           <span className="text-xs font-medium text-[var(--muted)]">{progressStats.total} words</span>
         </div>
@@ -294,7 +294,7 @@ export default function LearnPage() {
           Select Scope
         </label>
         <div className="flex gap-2 mb-2">
-          {(["surah", "juz"] as const).map((t) => (
+          {(["surah", "juz", "page"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setScope((s) => ({ type: t, value: s.value === 0 ? 1 : s.value }))}
@@ -304,7 +304,7 @@ export default function LearnPage() {
                   : "bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--foreground)]"
               }`}
             >
-              {t === "surah" ? "Surah" : "Juz"}
+              {t === "surah" ? "Surah" : t === "page" ? "Page" : "Juz"}
             </button>
           ))}
           <button
@@ -322,7 +322,7 @@ export default function LearnPage() {
           <input
             type="number"
             min={1}
-            max={scope.type === "surah" ? 114 : 30}
+            max={scope.type === "surah" ? 114 : scope.type === "page" ? 604 : 30}
             value={scope.value}
             onChange={(e) =>
               setScope((s) => ({ ...s, value: parseInt(e.target.value) || 1 }))
