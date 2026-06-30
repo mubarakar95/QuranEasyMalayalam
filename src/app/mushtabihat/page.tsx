@@ -22,10 +22,11 @@ import {
   getHiddenPairs,
   syncHiddenToSupabase,
   loadHiddenFromSupabase,
+  discoverSimilarPairs,
   type MushtabihatPair,
 } from "@/lib/mushtabihat";
 
-type View = "select" | "quiz" | "saved" | "hidden" | "browse";
+type View = "select" | "quiz" | "saved" | "hidden" | "browse" | "discover";
 
 export default function MushtabihatPage() {
   const router = useRouter();
@@ -49,6 +50,8 @@ export default function MushtabihatPage() {
   const [showAuth, setShowAuth] = useState(false);
   const [browseSearch, setBrowseSearch] = useState("");
   const [browseTexts, setBrowseTexts] = useState<Record<string, string>>({});
+  const [discoverPairs, setDiscoverPairs] = useState<MushtabihatPair[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
 
   useEffect(() => {
     loadMushtabihat().then(setAllPairs);
@@ -305,7 +308,7 @@ export default function MushtabihatPage() {
       </div>
 
       <div className="flex gap-0.5 bg-[var(--surface)] rounded-lg p-0.5 mb-4">
-        {(["practice", "browse", "saved", "hidden"] as const).map((tab) => (
+        {(["practice", "browse", "saved", "hidden", "discover"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => {
@@ -315,6 +318,8 @@ export default function MushtabihatPage() {
               } else if (tab === "hidden") {
                 loadMushtabihat().then((pairs) => setHiddenPairs(getHiddenPairs(pairs)));
                 setView("hidden");
+              } else if (tab === "discover") {
+                setView("discover");
               } else if (tab === "browse") {
                 setView("browse");
                 setBrowseSearch("");
@@ -323,12 +328,12 @@ export default function MushtabihatPage() {
               }
             }}
             className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
-              (view === "select" && tab === "practice") || (view === "saved" && tab === "saved") || (view === "hidden" && tab === "hidden") || (view === "browse" && tab === "browse")
+              (view === "select" && tab === "practice") || (view === "saved" && tab === "saved") || (view === "hidden" && tab === "hidden") || (view === "browse" && tab === "browse") || (view === "discover" && tab === "discover")
                 ? "bg-[var(--foreground)] text-[var(--background)]"
                 : "text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            {tab === "practice" ? "Practice" : tab === "browse" ? "Browse" : tab === "saved" ? "Saved" : "Hidden"}
+            {tab === "practice" ? "Practice" : tab === "browse" ? "Browse" : tab === "saved" ? "Saved" : tab === "discover" ? "Discover" : "Hidden"}
           </button>
         ))}
       </div>
@@ -415,6 +420,90 @@ export default function MushtabihatPage() {
             ))}
           </div>
         )
+      ) : view === "discover" ? (
+        <>
+          <p className="text-xs text-[var(--muted)] mb-6 leading-relaxed">
+            Find similar verses within a juz range. Searches through Quran text and shows pairs with overlapping words.
+          </p>
+
+          <div className="mb-6">
+            <label className="text-xs font-medium text-[var(--muted)] mb-3 block">
+              Juz Range
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] text-[var(--muted)] mb-1 block">From</label>
+                <select
+                  value={startJuz}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    setStartJuz(v);
+                    if (v > endJuz) setEndJuz(v);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)]"
+                >
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map((j) => (
+                    <option key={j} value={j}>Juz {j}</option>
+                  ))}
+                </select>
+              </div>
+              <span className="text-[var(--muted)] mt-4">—</span>
+              <div className="flex-1">
+                <label className="text-[10px] text-[var(--muted)] mb-1 block">To</label>
+                <select
+                  value={endJuz}
+                  onChange={(e) => setEndJuz(Math.max(startJuz, parseInt(e.target.value)))}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)]"
+                >
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map((j) => (
+                    <option key={j} value={j} disabled={j < startJuz}>Juz {j}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setDiscoverLoading(true);
+              discoverSimilarPairs(startJuz, endJuz, 0.15).then((pairs) => {
+                setDiscoverPairs(pairs);
+                setDiscoverLoading(false);
+              });
+            }}
+            disabled={discoverLoading}
+            className="w-full py-3.5 rounded-xl bg-[var(--accent)] text-white text-sm font-semibold disabled:opacity-50 mb-6"
+          >
+            {discoverLoading ? "Searching..." : "Find Similar"}
+          </button>
+
+          {discoverPairs.length > 0 && (
+            <div className="space-y-2">
+              {discoverPairs.map((p) => (
+                <div key={`${p.ayah1}-${p.ayah2}`} className="p-3 rounded-lg bg-[var(--surface)]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-[var(--muted)]">
+                      {p.ayah1} ({SURAH_NAMES[p.surah1]?.englishName}) ↔ {p.ayah2} ({SURAH_NAMES[p.surah2]?.englishName})
+                    </span>
+                    {p.similarity != null && (
+                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--accent)] text-white">
+                        {p.similarity}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 gap-1 mt-2">
+                    <p className="text-sm leading-relaxed font-arabic text-right" dir="rtl" style={{ fontFamily: '"QCF4_Hafs_01", serif' }}>
+                      {p.text1 || "—"}
+                    </p>
+                    <p className="text-sm leading-relaxed font-arabic text-right" dir="rtl" style={{ fontFamily: '"QCF4_Hafs_01", serif' }}>
+                      {p.text2 || "—"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       ) : view === "browse" ? (
         <>
           <input

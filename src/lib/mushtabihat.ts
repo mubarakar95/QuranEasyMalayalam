@@ -233,3 +233,105 @@ export async function loadHiddenFromSupabase(userId: string) {
   // Always push merged data back to keep remote in sync
   await syncHiddenToSupabase(userId);
 }
+
+// ─── Discover: find similar verses in a juz range ───────────────────────────
+
+let quranTextMap: Map<string, string> | null = null;
+
+async function loadQuranText(): Promise<Map<string, string>> {
+  if (quranTextMap) return quranTextMap;
+  const res = await fetch("/quran-text.json");
+  const surahs: { id: number; verses: { id: number; text: string }[] }[] = await res.json();
+  quranTextMap = new Map();
+  for (const surah of surahs) {
+    for (const verse of surah.verses) {
+      quranTextMap.set(`${surah.id}:${verse.id}`, verse.text);
+    }
+  }
+  return quranTextMap;
+}
+
+function stripDiacritics(text: string): string {
+  return text
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function wordOverlap(t1: string, t2: string): number {
+  const w1 = new Set(stripDiacritics(t1).split(/\s+/));
+  const w2 = new Set(stripDiacritics(t2).split(/\s+/));
+  const inter = new Set([...w1].filter((w) => w2.has(w)));
+  const union = new Set([...w1, ...w2]);
+  return union.size === 0 ? 0 : inter.size / union.size;
+}
+
+const JUZ_START_PAGES = [0,1,22,42,62,82,102,122,142,162,182,202,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582,600];
+
+export async function discoverSimilarPairs(
+  startJuz: number,
+  endJuz: number,
+  threshold: number = 0.15
+): Promise<MushtabihatPair[]> {
+  const [quranText, vpmData] = await Promise.all([
+    loadQuranText(),
+    fetch("/verse-page-map.json").then((r) => r.json()),
+  ]);
+
+  // Build verse_key → juz mapping
+  const verseJuz: Record<string, number> = {};
+  for (const [vk, page] of Object.entries(vpmData as Record<string, number>)) {
+    let juz = 30;
+    for (let j = 30; j >= 1; j--) {
+      if ((page as number) >= JUZ_START_PAGES[j]) { juz = j; break; }
+    }
+    verseJuz[vk] = juz;
+  }
+
+  // Get all verse keys in range
+  const verseKeys = Object.keys(verseJuz).filter((vk) => {
+    const j = verseJuz[vk];
+    return j >= startJuz && j <= endJuz;
+  });
+
+  // Compute pairwise similarity
+  const results: MushtabihatPair[] = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < verseKeys.length; i++) {
+    const t1 = quranText.get(verseKeys[i]);
+    if (!t1) continue;
+    for (let j = i + 1; j < verseKeys.length; j++) {
+      const t2 = quranText.get(verseKeys[j]);
+      if (!t2) continue;
+
+      const sim = wordOverlap(t1, t2);
+      if (sim >= threshold) {
+        const [s1a, v1a] = verseKeys[i].split(":").map(Number);
+        const [s2a, v2a] = verseKeys[j].split(":").map(Number);
+        const key = [verseKeys[i], verseKeys[j]].sort().join("|");
+        if (!seen.has(key)) {
+          seen.add(key);
+          results.push({
+            ayah1: verseKeys[i],
+            ayah2: verseKeys[j],
+            category: "",
+            note: "",
+            source: "curated",
+            origin: "waqar",
+            surah1: s1a,
+            surah2: s2a,
+            juz1: verseJuz[verseKeys[i]],
+            juz2: verseJuz[verseKeys[j]],
+            similarity: Math.round(sim * 100),
+            text1: t1,
+            text2: t2,
+          });
+        }
+      }
+    }
+  }
+
+  results.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+  return results.slice(0, 50);
+}
