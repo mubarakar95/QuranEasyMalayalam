@@ -9,6 +9,7 @@ import {
   loadMushtabihat,
   filterByJuzRange,
   fetchPairTexts,
+  fetchAyahText,
   shuffle,
   isBookmarked,
   toggleBookmark,
@@ -24,7 +25,7 @@ import {
   type MushtabihatPair,
 } from "@/lib/mushtabihat";
 
-type View = "select" | "quiz" | "saved" | "hidden";
+type View = "select" | "quiz" | "saved" | "hidden" | "browse";
 
 export default function MushtabihatPage() {
   const router = useRouter();
@@ -33,9 +34,7 @@ export default function MushtabihatPage() {
   const [endJuz, setEndJuz] = useState(30);
   const [allPairs, setAllPairs] = useState<MushtabihatPair[]>([]);
   const [loading, setLoading] = useState(false);
-  const [includePending, setIncludePending] = useState(false);
 
-  // Quiz state
   const [quizPairs, setQuizPairs] = useState<MushtabihatPair[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -48,6 +47,8 @@ export default function MushtabihatPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [browseSearch, setBrowseSearch] = useState("");
+  const [browseTexts, setBrowseTexts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadMushtabihat().then(setAllPairs);
@@ -68,11 +69,7 @@ export default function MushtabihatPage() {
   const startQuiz = useCallback(() => {
     setLoading(true);
     loadMushtabihat().then((pairs) => {
-      const filtered = filterHidden(filterByJuzRange(
-        includePending ? pairs : pairs.filter((p) => p.source === "curated"),
-        startJuz,
-        endJuz
-      ));
+      const filtered = filterHidden(filterByJuzRange(pairs, startJuz, endJuz));
       if (filtered.length === 0) {
         setLoading(false);
         return;
@@ -85,7 +82,7 @@ export default function MushtabihatPage() {
       setView("quiz");
       setLoading(false);
     });
-  }, [startJuz, endJuz, includePending]);
+  }, [startJuz, endJuz]);
 
   const currentPair = quizPairs[currentIdx];
 
@@ -143,12 +140,15 @@ export default function MushtabihatPage() {
   }
 
   if (view === "quiz" && currentPair) {
-    const shown = showingAyah1 ? currentPair : { ayah1: currentPair.ayah2, ayah2: currentPair.ayah1, text1: currentPair.text2, text2: currentPair.text1 };
-    const hidden = showingAyah1 ? { ayah: currentPair.ayah2, text: currentPair.text2 } : { ayah: currentPair.ayah1, text: currentPair.text1 };
+    const shown = showingAyah1
+      ? currentPair
+      : { ayah1: currentPair.ayah2, ayah2: currentPair.ayah1, text1: currentPair.text2, text2: currentPair.text1 };
+    const hiddenVerse = showingAyah1
+      ? { ayah: currentPair.ayah2, text: currentPair.text2 }
+      : { ayah: currentPair.ayah1, text: currentPair.text1 };
 
     return (
       <div className="max-w-lg mx-auto p-4 pb-20">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => setView("select")} className="p-1.5 rounded-md hover:bg-[var(--surface)]">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -193,7 +193,6 @@ export default function MushtabihatPage() {
           </button>
         </div>
 
-        {/* Progress */}
         <div className="w-full h-1 bg-[var(--surface)] rounded-full mb-6 overflow-hidden">
           <div
             className="h-full bg-[var(--accent)] rounded-full transition-all duration-300"
@@ -201,9 +200,7 @@ export default function MushtabihatPage() {
           />
         </div>
 
-        {/* Card */}
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden mb-4">
-          {/* Shown verse */}
           <div className="p-5 text-center">
             <p className="text-[10px] text-[var(--muted)] mb-3 font-medium">
               {showingAyah1 ? currentPair.ayah1 : currentPair.ayah2} — {SURAH_NAMES[showingAyah1 ? currentPair.surah1 : currentPair.surah2]?.englishName || ""}
@@ -220,9 +217,14 @@ export default function MushtabihatPage() {
               )}
             </p>
             <div className="flex items-center justify-center gap-2 mt-3">
-              {currentPair.source === "pending" && (
-                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500 text-white">
-                  Uncurated
+              {currentPair.similarity != null && (
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--accent)] text-white">
+                  {currentPair.similarity}% match
+                </span>
+              )}
+              {currentPair.origin && (
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+                  {currentPair.origin === "waqar" ? "Qari-curated" : "srmdn"}
                 </span>
               )}
               {currentPair.category && (
@@ -233,10 +235,8 @@ export default function MushtabihatPage() {
             </div>
           </div>
 
-          {/* Divider */}
           <div className="border-t border-[var(--border)]" />
 
-          {/* Hidden / Revealed verse */}
           <div className={`p-5 text-center transition-all duration-300 ${revealed ? "bg-[var(--background)]" : ""}`}>
             {!revealed ? (
               <button
@@ -252,14 +252,14 @@ export default function MushtabihatPage() {
             ) : (
               <div className="animate-in fade-in duration-300">
                 <p className="text-[10px] text-[var(--muted)] mb-3 font-medium">
-                  {hidden.ayah} — {SURAH_NAMES[showingAyah1 ? currentPair.surah2 : currentPair.surah1]?.englishName || ""}
+                  {hiddenVerse.ayah} — {SURAH_NAMES[showingAyah1 ? currentPair.surah2 : currentPair.surah1]?.englishName || ""}
                 </p>
                 <p
                   className="text-xl leading-relaxed font-arabic mb-3"
                   dir="rtl"
                   style={{ fontFamily: '"QCF4_Hafs_01", serif' }}
                 >
-                  {hidden.text || "—"}
+                  {hiddenVerse.text || "—"}
                 </p>
                 {currentPair.note && (
                   <div className="mt-3 p-3 rounded-lg bg-[var(--surface)] text-left">
@@ -273,7 +273,6 @@ export default function MushtabihatPage() {
           </div>
         </div>
 
-        {/* Navigation */}
         <div className="flex items-center gap-3">
           <button
             onClick={handlePrev}
@@ -294,7 +293,6 @@ export default function MushtabihatPage() {
     );
   }
 
-  // Select view
   return (
     <div className="max-w-lg mx-auto p-4 pb-20">
       <div className="flex items-center gap-3 mb-4">
@@ -306,9 +304,8 @@ export default function MushtabihatPage() {
         <h1 className="text-lg font-semibold">Mushtabihat</h1>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-0.5 bg-[var(--surface)] rounded-lg p-0.5 mb-4">
-        {(["practice", "saved", "hidden"] as const).map((tab) => (
+        {(["practice", "browse", "saved", "hidden"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => {
@@ -318,23 +315,25 @@ export default function MushtabihatPage() {
               } else if (tab === "hidden") {
                 loadMushtabihat().then((pairs) => setHiddenPairs(getHiddenPairs(pairs)));
                 setView("hidden");
+              } else if (tab === "browse") {
+                setView("browse");
+                setBrowseSearch("");
               } else {
                 setView("select");
               }
             }}
             className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
-              (view === "select" && tab === "practice") || (view === "saved" && tab === "saved") || (view === "hidden" && tab === "hidden")
+              (view === "select" && tab === "practice") || (view === "saved" && tab === "saved") || (view === "hidden" && tab === "hidden") || (view === "browse" && tab === "browse")
                 ? "bg-[var(--foreground)] text-[var(--background)]"
                 : "text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            {tab === "practice" ? "Practice" : tab === "saved" ? "Saved" : "Hidden"}
+            {tab === "practice" ? "Practice" : tab === "browse" ? "Browse" : tab === "saved" ? "Saved" : "Hidden"}
           </button>
         ))}
       </div>
 
       {view === "saved" ? (
-        /* Saved pairs view */
         savedPairs.length === 0 ? (
           <div className="text-center py-12">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 mx-auto mb-3 text-[var(--muted)]">
@@ -377,7 +376,6 @@ export default function MushtabihatPage() {
           </div>
         )
       ) : view === "hidden" ? (
-        /* Hidden pairs view */
         hiddenPairs.length === 0 ? (
           <div className="text-center py-12">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 mx-auto mb-3 text-[var(--muted)]">
@@ -417,124 +415,183 @@ export default function MushtabihatPage() {
             ))}
           </div>
         )
+      ) : view === "browse" ? (
+        <>
+          <input
+            type="text"
+            placeholder="Search by surah name or verse ref..."
+            value={browseSearch}
+            onChange={(e) => setBrowseSearch(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)] mb-4"
+          />
+          {(() => {
+            const q = browseSearch.toLowerCase().trim();
+            const filtered = allPairs.filter((p) => {
+              if (!q) return true;
+              const name1 = (SURAH_NAMES[p.surah1]?.englishName || "").toLowerCase();
+              const name2 = (SURAH_NAMES[p.surah2]?.englishName || "").toLowerCase();
+              return (
+                p.ayah1.includes(q) || p.ayah2.includes(q) ||
+                name1.includes(q) || name2.includes(q)
+              );
+            }).slice(0, 50);
+
+            if (filtered.length > 0) {
+              const needed = new Set<string>();
+              for (const p of filtered) {
+                if (!browseTexts[p.ayah1]) needed.add(p.ayah1);
+                if (!browseTexts[p.ayah2]) needed.add(p.ayah2);
+              }
+              if (needed.size > 0) {
+                const keys = [...needed];
+                Promise.all(keys.map((k) => fetchAyahText(k))).then((texts) => {
+                  setBrowseTexts((prev) => {
+                    const next = { ...prev };
+                    keys.forEach((k, i) => { if (texts[i]) next[k] = texts[i]; });
+                    return next;
+                  });
+                });
+              }
+            }
+
+            return filtered.length === 0 ? (
+              <p className="text-xs text-[var(--muted)] text-center py-8">No pairs found</p>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map((p) => (
+                  <div key={`${p.ayah1}-${p.ayah2}`} className="p-3 rounded-lg bg-[var(--surface)]">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-[var(--muted)]">
+                        {p.ayah1} ({SURAH_NAMES[p.surah1]?.englishName}) ↔ {p.ayah2} ({SURAH_NAMES[p.surah2]?.englishName})
+                      </span>
+                      <span className="text-[10px] font-medium text-[var(--accent)]">{p.similarity}%</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1 mt-2">
+                      <p className="text-sm leading-relaxed font-arabic text-right" dir="rtl" style={{ fontFamily: '"QCF4_Hafs_01", serif' }}>
+                        {browseTexts[p.ayah1] || <span className="text-[var(--muted)] text-xs">loading...</span>}
+                      </p>
+                      <p className="text-sm leading-relaxed font-arabic text-right" dir="rtl" style={{ fontFamily: '"QCF4_Hafs_01", serif' }}>
+                        {browseTexts[p.ayah2] || <span className="text-[var(--muted)] text-xs">loading...</span>}
+                      </p>
+                    </div>
+                    {p.category && (
+                      <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] bg-[var(--background)] text-[var(--muted)]">
+                        {p.category.replace("_", " ")}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {allPairs.filter((p) => {
+                  if (!q) return true;
+                  const name1 = (SURAH_NAMES[p.surah1]?.englishName || "").toLowerCase();
+                  const name2 = (SURAH_NAMES[p.surah2]?.englishName || "").toLowerCase();
+                  return p.ayah1.includes(q) || p.ayah2.includes(q) || name1.includes(q) || name2.includes(q);
+                }).length > 50 && (
+                  <p className="text-[10px] text-[var(--muted)] text-center py-2">Showing first 50 results</p>
+                )}
+              </div>
+            );
+          })()}
+        </>
       ) : (
-        /* Practice view */
         <>
           <p className="text-xs text-[var(--muted)] mb-6 leading-relaxed">
             Practice identifying similar-looking verses (مشتبهات) that are commonly confused during memorization. Select a juz range and test yourself.
           </p>
 
-      {/* Juz range selector */}
-      <div className="mb-6">
-        <label className="text-xs font-medium text-[var(--muted)] mb-3 block">
-          Juz Range
-        </label>
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <label className="text-[10px] text-[var(--muted)] mb-1 block">From</label>
-            <select
-              value={startJuz}
-              onChange={(e) => {
-                const v = parseInt(e.target.value);
-                setStartJuz(v);
-                if (v > endJuz) setEndJuz(v);
-              }}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)]"
-            >
-              {Array.from({ length: 30 }, (_, i) => i + 1).map((j) => (
-                <option key={j} value={j}>Juz {j}</option>
-              ))}
-            </select>
-          </div>
-          <span className="text-[var(--muted)] mt-4">—</span>
-          <div className="flex-1">
-            <label className="text-[10px] text-[var(--muted)] mb-1 block">To</label>
-            <select
-              value={endJuz}
-              onChange={(e) => setEndJuz(Math.max(startJuz, parseInt(e.target.value)))}
-              className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)]"
-            >
-              {Array.from({ length: 30 }, (_, i) => i + 1).map((j) => (
-                <option key={j} value={j} disabled={j < startJuz}>Juz {j}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Pair count preview */}
-      <div className="mb-4 p-3 rounded-lg bg-[var(--surface)]">
-        <p className="text-xs text-[var(--muted)]">
-          {allPairs.length > 0
-            ? `${filterHidden(filterByJuzRange(includePending ? allPairs : allPairs.filter((p) => p.source === "curated"), startJuz, endJuz)).length} pairs in selected range`
-            : "Loading..."}
-        </p>
-      </div>
-
-      {/* Include pending toggle */}
-      <label className="flex items-center gap-3 mb-6 px-3 py-2.5 rounded-lg bg-[var(--surface)] cursor-pointer">
-        <input
-          type="checkbox"
-          checked={includePending}
-          onChange={(e) => setIncludePending(e.target.checked)}
-          className="w-4 h-4 rounded accent-[var(--accent)]"
-        />
-        <div>
-          <span className="text-xs font-medium">Include uncurated pairs</span>
-          <p className="text-[10px] text-[var(--muted)]">More content but some pairs may not be truly similar</p>
-        </div>
-      </label>
-
-      {/* Start button */}
-      <button
-        onClick={startQuiz}
-        disabled={loading || allPairs.length === 0}
-        className="w-full py-3.5 rounded-xl bg-[var(--accent)] text-white text-sm font-semibold disabled:opacity-50"
-      >
-        {loading ? "Loading..." : "Start Practice"}
-      </button>
-
-      {/* Auth section */}
-      <div className="mt-8 pt-4 border-t border-[var(--border)]">
-        {userId ? (
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium">{userEmail}</p>
-              <p className="text-[10px] text-[var(--muted)]">Bookmarks & hidden pairs synced</p>
+          <div className="mb-6">
+            <label className="text-xs font-medium text-[var(--muted)] mb-3 block">
+              Juz Range
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-[10px] text-[var(--muted)] mb-1 block">From</label>
+                <select
+                  value={startJuz}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    setStartJuz(v);
+                    if (v > endJuz) setEndJuz(v);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)]"
+                >
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map((j) => (
+                    <option key={j} value={j}>Juz {j}</option>
+                  ))}
+                </select>
+              </div>
+              <span className="text-[var(--muted)] mt-4">—</span>
+              <div className="flex-1">
+                <label className="text-[10px] text-[var(--muted)] mb-1 block">To</label>
+                <select
+                  value={endJuz}
+                  onChange={(e) => setEndJuz(Math.max(startJuz, parseInt(e.target.value)))}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)]"
+                >
+                  {Array.from({ length: 30 }, (_, i) => i + 1).map((j) => (
+                    <option key={j} value={j} disabled={j < startJuz}>Juz {j}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <button
-              onClick={async () => {
-                const supabase = createClient();
-                await supabase.auth.signOut();
-                setUserId(null);
-                setUserEmail(null);
-              }}
-              className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              Sign Out
-            </button>
           </div>
-        ) : (
-          <button
-            onClick={() => setShowAuth(true)}
-            className="w-full py-2.5 rounded-lg border border-[var(--border)] text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)] transition-colors"
-          >
-            Sign in to sync bookmarks & hidden pairs
-          </button>
-        )}
-      </div>
 
-      <AuthModal
-        open={showAuth}
-        onClose={() => setShowAuth(false)}
-        onAuth={(u) => {
-          setUserId(u.id);
-          setUserEmail(u.email);
-          loadBookmarksFromSupabase(u.id);
-          loadHiddenFromSupabase(u.id);
-        }}
-      />
-      </>
+          <div className="mb-6 p-3 rounded-lg bg-[var(--surface)]">
+            <p className="text-xs text-[var(--muted)]">
+              {allPairs.length > 0
+                ? `${filterHidden(filterByJuzRange(allPairs, startJuz, endJuz)).length} pairs in selected range`
+                : "Loading..."}
+            </p>
+          </div>
+
+          <button
+            onClick={startQuiz}
+            disabled={loading || allPairs.length === 0}
+            className="w-full py-3.5 rounded-xl bg-[var(--accent)] text-white text-sm font-semibold disabled:opacity-50"
+          >
+            {loading ? "Loading..." : "Start Practice"}
+          </button>
+
+          <div className="mt-8 pt-4 border-t border-[var(--border)]">
+            {userId ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium">{userEmail}</p>
+                  <p className="text-[10px] text-[var(--muted)]">Bookmarks & hidden pairs synced</p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const supabase = createClient();
+                    await supabase.auth.signOut();
+                    setUserId(null);
+                    setUserEmail(null);
+                  }}
+                  className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowAuth(true)}
+                className="w-full py-2.5 rounded-lg border border-[var(--border)] text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)] transition-colors"
+              >
+                Sign in to sync bookmarks & hidden pairs
+              </button>
+            )}
+          </div>
+
+          <AuthModal
+            open={showAuth}
+            onClose={() => setShowAuth(false)}
+            onAuth={(u) => {
+              setUserId(u.id);
+              setUserEmail(u.email);
+              loadBookmarksFromSupabase(u.id);
+              loadHiddenFromSupabase(u.id);
+            }}
+          />
+        </>
       )}
     </div>
   );

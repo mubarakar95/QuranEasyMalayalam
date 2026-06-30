@@ -4,12 +4,14 @@ export interface MushtabihatPair {
   category: string;
   note: string;
   source: "curated" | "pending";
+  origin: "waqar" | "srmdn";
   surah1: number;
   surah2: number;
   juz1: number;
   juz2: number;
   text1?: string;
   text2?: string;
+  similarity?: number;
 }
 
 let cachedPairs: MushtabihatPair[] | null = null;
