@@ -53,7 +53,7 @@ export default function MushtabihatPage() {
   const [discoverPairs, setDiscoverPairs] = useState<MushtabihatPair[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ verseKey: string; text: string }[]>([]);
+  const [searchResults, setSearchResults] = useState<{ verseKey: string; text: string; matchStart: number; matchEnd: number }[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
@@ -132,6 +132,10 @@ export default function MushtabihatPage() {
     }
   };
 
+  function stripDiacritics(text: string): string {
+    return text.replace(/[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0610-\u061A]/g, "").replace(/\s+/g, " ").trim();
+  }
+
   const runSearch = async () => {
     setSearchLoading(true);
     setSearchResults([]);
@@ -146,16 +150,18 @@ export default function MushtabihatPage() {
       return 30;
     };
 
-    const query = searchQuery.trim();
-    const results: { verseKey: string; text: string }[] = [];
+    const query = stripDiacritics(searchQuery.trim());
+    const results: { verseKey: string; text: string; matchStart: number; matchEnd: number }[] = [];
 
     for (const surah of surahs) {
       for (const verse of surah.verses) {
         const vk = `${surah.id}:${verse.id}`;
         const juz = getJuz(vk);
         if (juz < startJuz || juz > endJuz) continue;
-        if (verse.text.includes(query)) {
-          results.push({ verseKey: vk, text: verse.text });
+        const stripped = stripDiacritics(verse.text);
+        const idx = stripped.indexOf(query);
+        if (idx >= 0) {
+          results.push({ verseKey: vk, text: verse.text, matchStart: idx, matchEnd: idx + query.length });
         }
       }
     }
@@ -166,8 +172,38 @@ export default function MushtabihatPage() {
 
   function highlightMatch(text: string, query: string): string {
     if (!query.trim()) return text;
-    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return text.replace(new RegExp(`(${escaped})`, "g"), '<span style="background:var(--accent);color:white;padding:0 2px;border-radius:3px">$1</span>');
+    const stripped = stripDiacritics(text);
+    const qStripped = stripDiacritics(query);
+    const idx = stripped.indexOf(qStripped);
+    if (idx < 0) return text;
+    // Find character positions in original text that correspond to the stripped match
+    let origIdx = 0;
+    let strippedIdx = 0;
+    while (strippedIdx < idx && origIdx < text.length) {
+      if (!/[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0610-\u061A]/.test(text[origIdx])) {
+        strippedIdx++;
+      }
+      origIdx++;
+    }
+    const matchStart = origIdx;
+    let matchLen = 0;
+    let matchedStripped = 0;
+    while (matchedStripped < qStripped.length && origIdx < text.length) {
+      if (!/[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0610-\u061A]/.test(text[origIdx])) {
+        matchedStripped++;
+      }
+      origIdx++;
+      matchLen++;
+    }
+    // Include trailing diacritics
+    while (origIdx < text.length && /[\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u0610-\u061A]/.test(text[origIdx])) {
+      origIdx++;
+      matchLen++;
+    }
+    const before = text.slice(0, matchStart);
+    const match = text.slice(matchStart, matchStart + matchLen);
+    const after = text.slice(matchStart + matchLen);
+    return `${before}<span style="background:var(--accent);color:white;padding:0 2px;border-radius:3px">${match}</span>${after}`;
   }
 
   if (view === "quiz" && quizPairs.length === 0) {
