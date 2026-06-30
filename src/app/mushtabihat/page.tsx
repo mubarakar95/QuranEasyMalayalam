@@ -52,6 +52,9 @@ export default function MushtabihatPage() {
   const [browseTexts, setBrowseTexts] = useState<Record<string, string>>({});
   const [discoverPairs, setDiscoverPairs] = useState<MushtabihatPair[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{ verseKey: string; text: string }[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     loadMushtabihat().then(setAllPairs);
@@ -128,6 +131,44 @@ export default function MushtabihatPage() {
       setRevealed(false);
     }
   };
+
+  const runSearch = async () => {
+    setSearchLoading(true);
+    setSearchResults([]);
+    const res = await fetch("/quran-text.json");
+    const surahs: { id: number; name: string; verses: { id: number; text: string }[] }[] = await res.json();
+
+    const versePageMap: Record<string, number> = await fetch("/verse-page-map.json").then((r) => r.json());
+    const JUZ_START = [0,1,22,42,62,82,102,122,142,162,182,202,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582,600];
+    const getJuz = (vk: string) => {
+      const page = versePageMap[vk] || 1;
+      for (let j = 30; j >= 1; j--) { if (page >= JUZ_START[j]) return j; }
+      return 30;
+    };
+
+    const query = searchQuery.trim();
+    const results: { verseKey: string; text: string }[] = [];
+
+    for (const surah of surahs) {
+      for (const verse of surah.verses) {
+        const vk = `${surah.id}:${verse.id}`;
+        const juz = getJuz(vk);
+        if (juz < startJuz || juz > endJuz) continue;
+        if (verse.text.includes(query)) {
+          results.push({ verseKey: vk, text: verse.text });
+        }
+      }
+    }
+
+    setSearchResults(results);
+    setSearchLoading(false);
+  };
+
+  function highlightMatch(text: string, query: string): string {
+    if (!query.trim()) return text;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return text.replace(new RegExp(`(${escaped})`, "g"), '<span style="background:var(--accent);color:white;padding:0 2px;border-radius:3px">$1</span>');
+  }
 
   if (view === "quiz" && quizPairs.length === 0) {
     return (
@@ -422,17 +463,15 @@ export default function MushtabihatPage() {
         )
       ) : view === "discover" ? (
         <>
-          <p className="text-xs text-[var(--muted)] mb-6 leading-relaxed">
-            Find similar verses within a juz range. Searches through Quran text and shows pairs with overlapping words.
+          <p className="text-xs text-[var(--muted)] mb-4 leading-relaxed">
+            Search Quran text within a juz range. Type an Arabic phrase to find all verses containing it.
           </p>
 
-          <div className="mb-6">
-            <label className="text-xs font-medium text-[var(--muted)] mb-3 block">
-              Juz Range
-            </label>
+          {/* Juz range */}
+          <div className="mb-4">
+            <label className="text-xs font-medium text-[var(--muted)] mb-2 block">Juz Range</label>
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="text-[10px] text-[var(--muted)] mb-1 block">From</label>
                 <select
                   value={startJuz}
                   onChange={(e) => {
@@ -447,9 +486,8 @@ export default function MushtabihatPage() {
                   ))}
                 </select>
               </div>
-              <span className="text-[var(--muted)] mt-4">—</span>
+              <span className="text-[var(--muted)]">—</span>
               <div className="flex-1">
-                <label className="text-[10px] text-[var(--muted)] mb-1 block">To</label>
                 <select
                   value={endJuz}
                   onChange={(e) => setEndJuz(Math.max(startJuz, parseInt(e.target.value)))}
@@ -463,46 +501,52 @@ export default function MushtabihatPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setDiscoverLoading(true);
-              discoverSimilarPairs(startJuz, endJuz, 0.15).then((pairs) => {
-                setDiscoverPairs(pairs);
-                setDiscoverLoading(false);
-              });
-            }}
-            disabled={discoverLoading}
-            className="w-full py-3.5 rounded-xl bg-[var(--accent)] text-white text-sm font-semibold disabled:opacity-50 mb-6"
-          >
-            {discoverLoading ? "Searching..." : "Find Similar"}
-          </button>
+          {/* Search input */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Type Arabic text (e.g. إن الذين آمنوا)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchQuery.trim()) runSearch();
+              }}
+              className="flex-1 px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] text-sm outline-none focus:border-[var(--accent)]"
+            />
+            <button
+              onClick={runSearch}
+              disabled={searchLoading || !searchQuery.trim()}
+              className="px-4 py-2.5 rounded-lg bg-[var(--accent)] text-white text-sm font-medium disabled:opacity-50 shrink-0"
+            >
+              {searchLoading ? "..." : "Search"}
+            </button>
+          </div>
 
-          {discoverPairs.length > 0 && (
-            <div className="space-y-2">
-              {discoverPairs.map((p) => (
-                <div key={`${p.ayah1}-${p.ayah2}`} className="p-3 rounded-lg bg-[var(--surface)]">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] text-[var(--muted)]">
-                      {p.ayah1} ({SURAH_NAMES[p.surah1]?.englishName}) ↔ {p.ayah2} ({SURAH_NAMES[p.surah2]?.englishName})
-                    </span>
-                    {p.similarity != null && (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--accent)] text-white">
-                        {p.similarity}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 gap-1 mt-2">
-                    <p className="text-sm leading-relaxed font-arabic text-right" dir="rtl" style={{ fontFamily: '"QCF4_Hafs_01", serif' }}>
-                      {p.text1 || "—"}
-                    </p>
-                    <p className="text-sm leading-relaxed font-arabic text-right" dir="rtl" style={{ fontFamily: '"QCF4_Hafs_01", serif' }}>
-                      {p.text2 || "—"}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {searchResults.length > 0 && (
+            <p className="text-[10px] text-[var(--muted)] mb-3">{searchResults.length} verses found</p>
           )}
+
+          <div className="space-y-2">
+            {searchResults.map((r) => {
+              const surahNum = parseInt(r.verseKey.split(":")[0]);
+              const highlighted = highlightMatch(r.text, searchQuery);
+              return (
+                <div key={r.verseKey} className="p-3 rounded-lg bg-[var(--surface)]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-[var(--muted)] font-medium">
+                      {r.verseKey} — {SURAH_NAMES[surahNum]?.englishName || ""}
+                    </span>
+                  </div>
+                  <p
+                    className="text-sm leading-relaxed font-arabic text-right"
+                    dir="rtl"
+                    style={{ fontFamily: '"QCF4_Hafs_01", serif' }}
+                    dangerouslySetInnerHTML={{ __html: highlighted }}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </>
       ) : view === "browse" ? (
         <>
