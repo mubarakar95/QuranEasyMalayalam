@@ -219,11 +219,18 @@ export default function MushtabihatPage() {
                 shown.text1 || "—"
               )}
             </p>
-            {currentPair.category && (
-              <span className="inline-block mt-3 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--background)] text-[var(--muted)]">
-                {currentPair.category.replace("_", " ")}
-              </span>
-            )}
+            <div className="flex items-center justify-center gap-2 mt-3">
+              {currentPair.source === "pending" && (
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  Uncurated
+                </span>
+              )}
+              {currentPair.category && (
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--background)] text-[var(--muted)]">
+                  {currentPair.category.replace("_", " ")}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Divider */}
