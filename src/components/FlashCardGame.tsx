@@ -50,12 +50,13 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
       const repWords = filtered.filter((w) => repetition.includes(w.arabic));
       const otherWords = filtered.filter((w) => !repetition.includes(w.arabic));
 
-      // Within non-repetition: new > learning > learned, random within each group
+      // Within non-repetition: new > learning > learned, skip mastered
       const allProgress = getAllProgress();
       const grouped: VocabularyWord[][] = [[], [], []];
       const shuffledOthers = shuffle(otherWords);
       for (const w of shuffledOthers) {
         const p = allProgress[w.arabic];
+        if (p && p.status === "mastered") continue;
         const idx = !p ? 0 : p.status === "learning" ? 1 : 2;
         grouped[idx].push(w);
       }
