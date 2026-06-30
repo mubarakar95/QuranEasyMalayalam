@@ -221,7 +221,7 @@ export default function MushtabihatPage() {
             </p>
             <div className="flex items-center justify-center gap-2 mt-3">
               {currentPair.source === "pending" && (
-                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500 text-white">
                   Uncurated
                 </span>
               )}
