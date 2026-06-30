@@ -193,12 +193,12 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
 
       {/* Flash card */}
       <div
-        className="relative w-full cursor-pointer h-56 shrink-0"
-        style={{ height: "14rem", flexShrink: 0, overflow: "hidden" }}
+        className="relative w-full cursor-pointer"
+        style={{ height: "14rem" }}
         onClick={() => setFlipped(!flipped)}
       >
         <div
-          className="absolute inset-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
+          className="absolute inset-0 rounded-xl border border-[var(--border)] bg-[var(--surface)]"
           style={{
             transformStyle: "preserve-3d",
             transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
@@ -207,7 +207,7 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
         >
           {/* Front: Arabic */}
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6 overflow-hidden"
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6"
             style={{ backfaceVisibility: "hidden" }}
           >
             {isMultiWord && (
@@ -216,7 +216,7 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
               </span>
             )}
             <p
-              className="text-2xl font-arabic leading-loose text-[var(--foreground)] text-center"
+              className="text-2xl font-arabic leading-loose text-[var(--foreground)] text-center line-clamp-2"
               dir="rtl"
             >
               {current.arabic}
@@ -232,10 +232,10 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
 
           {/* Back: Malayalam */}
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6 overflow-hidden"
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6"
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            <p className="text-2xl text-[var(--foreground)] mb-2 text-center">
+            <p className="text-xl text-[var(--foreground)] mb-2 text-center line-clamp-3">
               {current.malayalam}
             </p>
             <p className="text-sm text-[var(--muted)] text-center" dir="rtl">
