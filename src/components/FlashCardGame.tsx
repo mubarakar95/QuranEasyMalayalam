@@ -174,7 +174,7 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
   const isMultiWord = current.wordCount > 1;
 
   return (
-    <div className="max-w-md mx-auto p-4">
+    <div className="max-w-md mx-auto p-4 overflow-hidden">
       {/* Progress bar */}
       <div className="flex items-center justify-between text-xs text-[var(--muted)] mb-3">
         <button onClick={onBack} className="hover:text-[var(--foreground)]">
@@ -193,11 +193,12 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
 
       {/* Flash card */}
       <div
-        className="relative w-full cursor-pointer h-56"
+        className="relative w-full cursor-pointer h-56 shrink-0"
+        style={{ height: "14rem", flexShrink: 0, overflow: "hidden" }}
         onClick={() => setFlipped(!flipped)}
       >
         <div
-          className="absolute inset-0 rounded-xl border border-[var(--border)] bg-[var(--surface)]"
+          className="absolute inset-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
           style={{
             transformStyle: "preserve-3d",
             transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
@@ -206,7 +207,7 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
         >
           {/* Front: Arabic */}
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6"
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6 overflow-hidden"
             style={{ backfaceVisibility: "hidden" }}
           >
             {isMultiWord && (
@@ -231,7 +232,7 @@ export default function FlashCardGame({ scopeType, scopeValue, onBack }: FlashCa
 
           {/* Back: Malayalam */}
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6"
+            className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-[var(--surface)] p-6 overflow-hidden"
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
             <p className="text-2xl text-[var(--foreground)] mb-2 text-center">
