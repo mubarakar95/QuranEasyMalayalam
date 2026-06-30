@@ -121,6 +121,28 @@ export default function QuizMode({ scopeType, scopeValue, questionCount, onBack 
     }
   }, [currentIdx, questions.length]);
 
+  // Keyboard shortcuts: 1-4 to select answer, auto-advance after 1s
+  useEffect(() => {
+    if (done || loading || questions.length === 0) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (selected !== null) return;
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 4) {
+        handleSelect(num - 1);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selected, done, loading, questions.length, handleSelect]);
+
+  // Auto-advance 1 second after answer selected
+  useEffect(() => {
+    if (selected === null) return;
+    const timer = setTimeout(handleNext, 1000);
+    return () => clearTimeout(timer);
+  }, [selected, handleNext]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -211,9 +233,9 @@ export default function QuizMode({ scopeType, scopeValue, questionCount, onBack 
           let style = "border-[var(--border)] hover:border-[var(--accent)]";
           if (selected !== null) {
             if (i === q.correctIndex) {
-              style = "border-green-500 bg-green-50 dark:bg-green-950";
+              style = "border-green-500 bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-200";
             } else if (i === selected && i !== q.correctIndex) {
-              style = "border-red-500 bg-red-50 dark:bg-red-950";
+              style = "border-red-500 bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-200";
             } else {
               style = "border-[var(--border)] opacity-50";
             }
@@ -225,19 +247,17 @@ export default function QuizMode({ scopeType, scopeValue, questionCount, onBack 
               disabled={selected !== null}
               className={`w-full py-3 px-4 rounded-lg border text-sm text-left transition-colors ${style}`}
             >
+              <span className="font-medium text-[var(--muted)] mr-2">{i + 1}.</span>
               {opt}
             </button>
           );
         })}
       </div>
 
-      {selected !== null && (
-        <button
-          onClick={handleNext}
-          className="w-full mt-4 py-2.5 rounded-lg bg-[var(--accent)] text-white text-sm font-medium"
-        >
-          {currentIdx + 1 >= questions.length ? "See Results" : "Next Question"}
-        </button>
+      {selected === null && (
+        <p className="text-center text-[10px] text-[var(--muted)] mt-4">
+          Press 1–4 to answer
+        </p>
       )}
     </div>
   );
