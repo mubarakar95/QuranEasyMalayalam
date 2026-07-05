@@ -5,15 +5,19 @@ const API_BASE = "https://api.alquran.cloud/v1";
 const pageCache = new Map<number, PageData>();
 const translationCache = new Map<number, Map<string, string>>();
 
-let dbModule: typeof import("./db") | null = null;
-async function getDb() {
-  if (!dbModule) {
-    try { dbModule = await import("./db"); } catch { return null; }
+let dbPromise: Promise<typeof import("./db") | null> | null = null;
+function getDb(): Promise<typeof import("./db") | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (!dbPromise) {
+    dbPromise = import("./db").catch(() => null);
   }
-  return dbModule;
+  return dbPromise;
 }
 
 async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    throw new Error("offline");
+  }
   for (let i = 0; i <= retries; i++) {
     try {
       const response = await fetch(url);

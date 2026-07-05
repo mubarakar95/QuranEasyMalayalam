@@ -85,9 +85,12 @@ export default function Home() {
           try { localStorage.setItem("quran-page", currentPage.toString()); } catch {}
           window.scrollTo({ top: 0, behavior: "smooth" });
         }
-      } catch {
+      } catch (e) {
         if (!cancelled) {
-          setError("പേജ് ലോഡ് ചെയ്യാൻ കഴിഞ്ഞില്ല");
+          const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+          setError(isOffline
+            ? "Offline — this page hasn't been downloaded yet. Open Menu → Settings → Downloads to download pages for offline use."
+            : "പേജ് ലോഡ് ചെയ്യാൻ കഴിഞ്ഞില്ല");
           setPageData(null);
           setLoading(false);
         }
