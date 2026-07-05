@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RECITERS, TOTAL_PAGES } from "@/lib/types";
+import { RECITERS, TOTAL_PAGES, MALAYALAM_EDITION } from "@/lib/types";
 import {
   storeAudioBlob,
   getDownloadedSurahs,
   storePageData,
+  storeAyahPageData,
+  storeTranslationPageData,
   hasPageData,
   getStorageEstimate,
   clearAllOfflineData,
@@ -166,10 +168,27 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
     setDownloading(true);
     for (let p = 1; p <= TOTAL_PAGES; p++) {
       try {
-        const res = await fetch(`/api/qcf4/${p.toString().padStart(3, "0")}`);
-        if (res.ok) {
-          const data = await res.json();
+        const padded = p.toString().padStart(3, "0");
+        const [qcf4Res, ayahRes, transRes] = await Promise.allSettled([
+          fetch(`/api/qcf4/${padded}`),
+          fetch(`https://api.alquran.cloud/v1/page/${p}/quran-uthmani`),
+          fetch(`https://api.alquran.cloud/v1/page/${p}/${MALAYALAM_EDITION}`),
+        ]);
+        if (qcf4Res.status === "fulfilled" && qcf4Res.value.ok) {
+          const data = await qcf4Res.value.json();
           await storePageData(p, data);
+        }
+        if (ayahRes.status === "fulfilled" && ayahRes.value.ok) {
+          const data = await ayahRes.value.json();
+          await storeAyahPageData(p, { number: data.data.number, ayahs: data.data.ayahs });
+        }
+        if (transRes.status === "fulfilled" && transRes.value.ok) {
+          const data = await transRes.value.json();
+          const map: Record<string, string> = {};
+          for (const ayah of data.data.ayahs) {
+            map[`${ayah.surah.number}:${ayah.numberInSurah}`] = ayah.text;
+          }
+          await storeTranslationPageData(p, map);
         }
       } catch {
         /* skip */

@@ -133,6 +133,52 @@ export async function storePageData(
   });
 }
 
+export async function storeAyahPageData(
+  pageNum: number,
+  data: unknown
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PAGE_STORE, "readwrite");
+    tx.objectStore(PAGE_STORE).put(data, `ayahs_${pageNum}`);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export async function getAyahPageData(pageNum: number): Promise<unknown | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PAGE_STORE, "readonly");
+    const req = tx.objectStore(PAGE_STORE).get(`ayahs_${pageNum}`);
+    req.onsuccess = () => { db.close(); resolve(req.result ?? null); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  });
+}
+
+export async function storeTranslationPageData(
+  pageNum: number,
+  data: unknown
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PAGE_STORE, "readwrite");
+    tx.objectStore(PAGE_STORE).put(data, `trans_${pageNum}`);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export async function getTranslationPageData(pageNum: number): Promise<unknown | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PAGE_STORE, "readonly");
+    const req = tx.objectStore(PAGE_STORE).get(`trans_${pageNum}`);
+    req.onsuccess = () => { db.close(); resolve(req.result ?? null); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  });
+}
+
 export async function getPageData(pageNum: number): Promise<unknown | null> {
   const db = await openDB();
   return new Promise((resolve, reject) => {

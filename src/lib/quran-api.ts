@@ -5,6 +5,14 @@ const API_BASE = "https://api.alquran.cloud/v1";
 const pageCache = new Map<number, PageData>();
 const translationCache = new Map<number, Map<string, string>>();
 
+let dbModule: typeof import("./db") | null = null;
+async function getDb() {
+  if (!dbModule) {
+    try { dbModule = await import("./db"); } catch { return null; }
+  }
+  return dbModule;
+}
+
 async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
   for (let i = 0; i <= retries; i++) {
     try {
@@ -28,6 +36,16 @@ export async function fetchPage(pageNumber: number): Promise<PageData> {
     return pageCache.get(pageNumber)!;
   }
 
+  const db = await getDb();
+  if (db) {
+    const cached = await db.getAyahPageData(pageNumber);
+    if (cached) {
+      const pageData = cached as PageData;
+      pageCache.set(pageNumber, pageData);
+      return pageData;
+    }
+  }
+
   const response = await fetchWithRetry(`${API_BASE}/page/${pageNumber}/quran-uthmani`);
   if (!response.ok) {
     throw new Error(`Failed to load page ${pageNumber}. Please try again.`);
@@ -40,6 +58,11 @@ export async function fetchPage(pageNumber: number): Promise<PageData> {
   };
 
   pageCache.set(pageNumber, pageData);
+
+  if (db) {
+    try { await db.storeAyahPageData(pageNumber, pageData); } catch { /* ignore */ }
+  }
+
   return pageData;
 }
 
@@ -65,6 +88,16 @@ export async function fetchTranslationPage(pageNumber: number): Promise<Map<stri
     return translationCache.get(pageNumber)!;
   }
 
+  const db = await getDb();
+  if (db) {
+    const cached = await db.getTranslationPageData(pageNumber);
+    if (cached) {
+      const map = new Map(Object.entries(cached as Record<string, string>));
+      translationCache.set(pageNumber, map);
+      return map;
+    }
+  }
+
   const response = await fetchWithRetry(`${API_BASE}/page/${pageNumber}/${MALAYALAM_EDITION}`);
   if (!response.ok) {
     throw new Error(`Failed to load translation for page ${pageNumber}. Please try again.`);
@@ -79,6 +112,11 @@ export async function fetchTranslationPage(pageNumber: number): Promise<Map<stri
   }
 
   translationCache.set(pageNumber, translationMap);
+
+  if (db) {
+    try { await db.storeTranslationPageData(pageNumber, Object.fromEntries(translationMap)); } catch { /* ignore */ }
+  }
+
   return translationMap;
 }
 

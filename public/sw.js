@@ -39,7 +39,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.hostname.includes("cdn.islamic.network") || url.hostname.includes("verses.quran.com")) {
+  if (url.hostname.includes("cdn.islamic.network") || url.hostname.includes("verses.quran.com") || url.hostname.includes("api.alquran.cloud")) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
