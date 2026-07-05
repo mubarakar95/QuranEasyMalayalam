@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { RECITERS, TOTAL_PAGES } from "@/lib/types";
 import {
   storeAudioBlob,
-  hasAudioForSurah,
+  getDownloadedSurahs,
   storePageData,
   hasPageData,
   getStorageEstimate,
@@ -46,12 +46,25 @@ const SURAH_NAMES = [
   "Al-Masad", "Al-Ikhlas", "Al-Falaq", "An-Nas",
 ];
 
+const globalAyahOffset = (() => {
+  const offsets = new Array(115);
+  offsets[0] = 0;
+  for (let i = 1; i <= 114; i++) {
+    offsets[i] = offsets[i - 1] + SURAH_AYAH_COUNTS[i - 1];
+  }
+  return offsets;
+})();
+
+function getGlobalAyahNumber(surah: number, ayahInSurah: number): number {
+  return globalAyahOffset[surah - 1] + ayahInSurah;
+}
+
 export default function DownloadManager({ isOpen, onClose }: DownloadManagerProps) {
   const [tab, setTab] = useState<Tab>("audio");
   const [selectedReciter, setSelectedReciter] = useState(RECITERS[0].id);
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, label: "" });
-  const [audioStatus, setAudioStatus] = useState<Map<string, boolean>>(new Map());
+  const [audioStatus, setAudioStatus] = useState<Map<number, boolean>>(new Map());
   const [pageStatus, setPageStatus] = useState<Map<number, boolean>>(new Map());
   const [storageInfo, setStorageInfo] = useState({ used: 0, quota: 0 });
 
@@ -61,11 +74,7 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
   }, []);
 
   const refreshAudioStatus = useCallback(async () => {
-    const map = new Map<string, boolean>();
-    for (let s = 1; s <= 114; s++) {
-      const key = `${selectedReciter}_${s}`;
-      map.set(key, await hasAudioForSurah(selectedReciter, s, SURAH_AYAH_COUNTS[s - 1]));
-    }
+    const map = await getDownloadedSurahs(selectedReciter, SURAH_AYAH_COUNTS);
     setAudioStatus(map);
   }, [selectedReciter]);
 
@@ -99,7 +108,8 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
     setProgress({ current: 0, total: ayahCount, label: SURAH_NAMES[surahNum - 1] });
     for (let a = 1; a <= ayahCount; a++) {
       try {
-        const url = getAudioUrl(reciter, surahNum, a, 0);
+        const globalAyah = getGlobalAyahNumber(surahNum, a);
+        const url = getAudioUrl(reciter, surahNum, a, globalAyah);
         const res = await fetch(url);
         if (res.ok) {
           const blob = await res.blob();
@@ -111,9 +121,13 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
       setProgress({ current: a, total: ayahCount, label: SURAH_NAMES[surahNum - 1] });
     }
     setDownloading(false);
-    await refreshAudioStatus();
+    setAudioStatus((prev) => {
+      const next = new Map(prev);
+      next.set(surahNum, true);
+      return next;
+    });
     await refreshStorage();
-  }, [selectedReciter, refreshAudioStatus, refreshStorage]);
+  }, [selectedReciter, refreshStorage]);
 
   const downloadAllAudio = useCallback(async () => {
     const reciter = RECITERS.find((r) => r.id === selectedReciter);
@@ -126,7 +140,8 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
       for (let a = 1; a <= ayahCount; a++) {
         ayahIdx++;
         try {
-          const url = getAudioUrl(reciter, s, a, 0);
+          const globalAyah = getGlobalAyahNumber(s, a);
+          const url = getAudioUrl(reciter, s, a, globalAyah);
           const res = await fetch(url);
           if (res.ok) {
             const blob = await res.blob();
@@ -137,11 +152,15 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
         }
         setProgress({ current: ayahIdx, total: totalAyahs, label: SURAH_NAMES[s - 1] });
       }
+      setAudioStatus((prev) => {
+        const next = new Map(prev);
+        next.set(s, true);
+        return next;
+      });
     }
     setDownloading(false);
-    await refreshAudioStatus();
     await refreshStorage();
-  }, [selectedReciter, refreshAudioStatus, refreshStorage]);
+  }, [selectedReciter, refreshStorage]);
 
   const downloadAllPages = useCallback(async () => {
     setDownloading(true);
@@ -156,11 +175,15 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
         /* skip */
       }
       setProgress({ current: p, total: TOTAL_PAGES, label: "Pages" });
+      setPageStatus((prev) => {
+        const next = new Map(prev);
+        next.set(p, true);
+        return next;
+      });
     }
     setDownloading(false);
-    await refreshPageStatus();
     await refreshStorage();
-  }, [refreshPageStatus, refreshStorage]);
+  }, [refreshStorage]);
 
   const handleClearAll = useCallback(async () => {
     if (!confirm("Delete all downloaded data?")) return;
@@ -269,7 +292,7 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
 
               <div className="space-y-px">
                 {Array.from({ length: 114 }, (_, i) => i + 1).map((s) => {
-                  const downloaded = audioStatus.get(`${selectedReciter}_${s}`) ?? false;
+                  const downloaded = audioStatus.get(s) ?? false;
                   return (
                     <button
                       key={s}
