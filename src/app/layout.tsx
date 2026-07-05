@@ -19,6 +19,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: "#111111",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -33,7 +34,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://cdn.islamic.network" />
         <link rel="preconnect" href="https://api.quran.com" />
       </head>
-      <body className="min-h-screen flex flex-col overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
+      <body className="min-h-screen flex flex-col overflow-x-hidden overflow-y-hidden bg-[var(--background)] text-[var(--foreground)]">
         <ServiceWorkerRegistration />
         {children}
       </body>

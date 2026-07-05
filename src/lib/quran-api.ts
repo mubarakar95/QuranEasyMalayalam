@@ -1,4 +1,4 @@
-import { PageData, TOTAL_PAGES, MALAYALAM_EDITION } from "./types";
+import { PageData, TOTAL_PAGES, MALAYALAM_EDITION, Reciter } from "./types";
 
 const API_BASE = "https://api.alquran.cloud/v1";
 
@@ -43,8 +43,13 @@ export async function fetchPage(pageNumber: number): Promise<PageData> {
   return pageData;
 }
 
-export function getAudioUrl(reciterId: string, ayahNumber: number): string {
-  return `https://cdn.islamic.network/quran/audio/128/${reciterId}/${ayahNumber}.mp3`;
+export function getAudioUrl(reciter: Reciter, surahNumber: number, ayahInSurah: number, globalAyahNumber: number): string {
+  if (reciter.audioFormat === "global") {
+    return `${reciter.audioBase}/${globalAyahNumber}.mp3`;
+  }
+  const s = surahNumber.toString().padStart(3, "0");
+  const a = ayahInSurah.toString().padStart(3, "0");
+  return `${reciter.audioBase}/${s}${a}.mp3`;
 }
 
 export function getSurahListUrl(): string {

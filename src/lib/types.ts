@@ -28,15 +28,20 @@ export interface Reciter {
   id: string;
   name: string;
   arabicName: string;
+  audioBase: string;
+  audioFormat: "global" | "surah";
   quranComId: number | null;
 }
 
 export const RECITERS: Reciter[] = [
-  { id: "ar.alafasy", name: "Mishary Rashid Alafasy", arabicName: "مشاري راشد العفاسي", quranComId: 7 },
-  { id: "ar.abdurrahmaansudais", name: "Abdurrahman As-Sudais", arabicName: "عبد الرحمن السديس", quranComId: 3 },
-  { id: "ar.husary", name: "Mahmoud Khalil Al-Husary", arabicName: "محمود خليل الحصري", quranComId: 6 },
-  { id: "ar.mahirualmuaiqly", name: "Maher Al-Muaiqly (Haramain)", arabicName: "ماهر المعيقلي", quranComId: null },
-  { id: "ar.hudhaify", name: "Ali Al-Hudaify", arabicName: "علي الحذيفي", quranComId: null },
+  { id: "ar.hudhaify", name: "Ali Al-Hudaify", arabicName: "علي الحذيفي", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.hudhaify", audioFormat: "global", quranComId: null },
+  { id: "Sudais", name: "Abdurrahman As-Sudais", arabicName: "عبد الرحمن السديس", audioBase: "https://verses.quran.com/Sudais/mp3", audioFormat: "surah", quranComId: 3 },
+  { id: "ar.alafasy", name: "Mishary Rashid Alafasy", arabicName: "مشاري راشد العفاسي", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.alafasy", audioFormat: "global", quranComId: 7 },
+  { id: "ar.husary", name: "Mahmoud Khalil Al-Husary", arabicName: "محمود خليل الحصري", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.husary", audioFormat: "global", quranComId: 6 },
+  { id: "ar.shaatree", name: "Abdullah Awad Al-Juhani", arabicName: "عبد الله عواد الجهني", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.shaatree", audioFormat: "global", quranComId: null },
+  { id: "ar.husarymujawwad", name: "Husary (Mujawwad)", arabicName: "الحصري مجود", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.husarymujawwad", audioFormat: "global", quranComId: null },
+  { id: "ar.minshawi", name: "Mohamed Siddiq El-Minshawi", arabicName: "محمد صديق المنشاوي", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.minshawi", audioFormat: "global", quranComId: null },
+  { id: "ar.ahmedajamy", name: "Ahmed ibn Ali al-Ajamy", arabicName: "أحمد بن علي العجمي", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.ahmedajamy", audioFormat: "global", quranComId: null },
 ];
 
 export interface WordSegment {

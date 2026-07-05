@@ -1,0 +1,148 @@
+const DB_NAME = "quran-easy-offline";
+const DB_VERSION = 1;
+
+const AUDIO_STORE = "audio";
+const PAGE_STORE = "pages";
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(AUDIO_STORE)) {
+        db.createObjectStore(AUDIO_STORE);
+      }
+      if (!db.objectStoreNames.contains(PAGE_STORE)) {
+        db.createObjectStore(PAGE_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function audioKey(reciterId: string, surah: number, ayah: number): string {
+  return `${reciterId}_${surah}_${ayah}`;
+}
+
+export async function storeAudioBlob(
+  reciterId: string,
+  surah: number,
+  ayah: number,
+  blob: Blob
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUDIO_STORE, "readwrite");
+    tx.objectStore(AUDIO_STORE).put(blob, audioKey(reciterId, surah, ayah));
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export async function getAudioBlob(
+  reciterId: string,
+  surah: number,
+  ayah: number
+): Promise<Blob | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUDIO_STORE, "readonly");
+    const req = tx.objectStore(AUDIO_STORE).get(audioKey(reciterId, surah, ayah));
+    req.onsuccess = () => { db.close(); resolve(req.result ?? null); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  });
+}
+
+export async function hasAudioBlob(
+  reciterId: string,
+  surah: number,
+  ayah: number
+): Promise<boolean> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUDIO_STORE, "readonly");
+    const req = tx.objectStore(AUDIO_STORE).count(audioKey(reciterId, surah, ayah));
+    req.onsuccess = () => { db.close(); resolve(req.result > 0); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  });
+}
+
+export async function hasAudioForSurah(
+  reciterId: string,
+  surah: number,
+  ayahCount: number
+): Promise<boolean> {
+  for (let a = 1; a <= ayahCount; a++) {
+    const exists = await hasAudioBlob(reciterId, surah, a);
+    if (!exists) return false;
+  }
+  return true;
+}
+
+export async function storePageData(
+  pageNum: number,
+  data: unknown
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PAGE_STORE, "readwrite");
+    tx.objectStore(PAGE_STORE).put(data, `page_${pageNum}`);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export async function getPageData(pageNum: number): Promise<unknown | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PAGE_STORE, "readonly");
+    const req = tx.objectStore(PAGE_STORE).get(`page_${pageNum}`);
+    req.onsuccess = () => { db.close(); resolve(req.result ?? null); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  });
+}
+
+export async function hasPageData(pageNum: number): Promise<boolean> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PAGE_STORE, "readonly");
+    const req = tx.objectStore(PAGE_STORE).count(`page_${pageNum}`);
+    req.onsuccess = () => { db.close(); resolve(req.result > 0); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  });
+}
+
+export async function getStorageEstimate(): Promise<{ used: number; quota: number }> {
+  if (navigator.storage && navigator.storage.estimate) {
+    const est = await navigator.storage.estimate();
+    return { used: est.usage ?? 0, quota: est.quota ?? 0 };
+  }
+  return { used: 0, quota: 0 };
+}
+
+export async function clearAllOfflineData(): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([AUDIO_STORE, PAGE_STORE], "readwrite");
+    tx.objectStore(AUDIO_STORE).clear();
+    tx.objectStore(PAGE_STORE).clear();
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export const SURAH_AYAH_COUNTS = [
+  7, 286, 200, 176, 120, 165, 206, 75, 129, 109,
+  123, 111, 43, 52, 99, 128, 111, 110, 98, 135,
+  112, 78, 118, 64, 77, 227, 93, 88, 69, 37,
+  35, 30, 73, 54, 45, 83, 182, 88, 75, 85,
+  54, 53, 89, 59, 37, 35, 38, 28, 28, 20,
+  56, 40, 31, 50, 40, 46, 42, 29, 19, 36,
+  25, 22, 17, 19, 26, 30, 20, 15, 21, 11,
+  8, 8, 19, 5, 8, 8, 11, 11, 8, 3,
+  9, 5, 4, 7, 3, 6, 3, 5, 4, 5,
+  6, 3, 5, 4, 3, 3, 3, 5, 5, 3,
+  4, 4, 3, 3, 3, 3, 3, 3, 3, 3,
+  3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+];

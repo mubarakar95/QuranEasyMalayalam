@@ -61,6 +61,11 @@ export default function Home() {
       if (savedArSize >= 60 && savedArSize <= 200) setArFontSize(savedArSize);
       const savedLineHeight = parseInt(localStorage.getItem("quran-line-height") || "100");
       if (savedLineHeight >= 60 && savedLineHeight <= 200) setLineHeight(savedLineHeight);
+      const savedReciterId = localStorage.getItem("quran-reciter");
+      if (savedReciterId) {
+        const found = RECITERS.find((r) => r.id === savedReciterId);
+        if (found) setReciter(found);
+      }
     } catch {
       /* localStorage unavailable (e.g. Safari private) */
     }
@@ -143,6 +148,10 @@ export default function Home() {
   }, [lineHeight]);
 
   useEffect(() => {
+    try { localStorage.setItem("quran-reciter", reciter.id); } catch {}
+  }, [reciter]);
+
+  useEffect(() => {
     setCurrentAyahIndex(0);
     if (showSwipeWBW) setAudioVisible(false);
   }, [currentPage, showSwipeWBW]);
@@ -222,27 +231,22 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [goNext, goPrev]);
 
-  const [scrolledDown, setScrolledDown] = useState(false);
-  const lastScrollY = useRef(0);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
-  useEffect(() => {
-    const getScrollY = () => window.scrollY || document.documentElement.scrollTop || 0;
-    const handleScroll = () => {
-      const y = getScrollY();
-      const goingDown = y > lastScrollY.current;
-      const goingUp = y < lastScrollY.current;
-      if (y < 30) {
-        setScrolledDown(false);
-      } else if (goingDown) {
-        setScrolledDown(true);
-      } else if (goingUp) {
-        setScrolledDown(false);
-      }
-      lastScrollY.current = y;
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
   }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
+      if (dx < 0) goNext();
+      else goPrev();
+    }
+  }, [goNext, goPrev]);
 
   const ayahs = pageData?.ayahs || [];
   const surahName = pageData?.ayahs[0]?.surah.englishName;
@@ -254,124 +258,160 @@ export default function Home() {
 
   return (
     <ErrorBoundary>
-    <header
-      className="border-b border-[var(--border)] bg-[var(--background)] z-30"
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        transform: scrolledDown ? "translateY(-100%)" : "translateY(0)",
-        transition: "transform 0.3s ease-in-out",
-      }}
-    >
-      <div className="max-w-3xl mx-auto px-4 h-11 grid grid-cols-[auto_1fr_auto] items-center">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
-          aria-label="Open menu"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
-        </button>
-
-        <h1 className="text-sm font-semibold tracking-tight text-center">
-          Quran <span className="font-normal text-[var(--muted)]">Easy</span>
-        </h1>
-
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
-          aria-label="Toggle dark mode"
-        >
-          {darkMode ? (
+    <div className="mobile-layout">
+      <header
+        className="mobile-header border-b border-[var(--border)] bg-[var(--background)] z-30"
+        style={{
+          position: "sticky",
+          top: 0,
+          left: 0,
+          right: 0,
+        }}
+      >
+        <div className="max-w-3xl mx-auto px-4 h-9 grid grid-cols-[auto_1fr_auto] items-center">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+            aria-label="Open menu"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-            </svg>
-          )}
-        </button>
-      </div>
-    </header>
+          </button>
 
-    <main className="flex-1" style={{ paddingTop: "2.75rem", paddingBottom: audioVisible ? "10rem" : "3.5rem" }}>
-      <div style={{ display: simpleMode ? "none" : "block" }}>
-        <div style={{ display: showSwipeWBW ? "block" : "none" }}>
-          <SwipeWBWView
-            ayahs={ayahs}
-            currentPage={currentPage}
-            mlFontSize={mlFontSize}
-            currentAyahIndex={currentAyahIndex}
-            onAyahIndexChange={setCurrentAyahIndex}
-            translationMap={translationMap}
-          />
-        </div>
-        <div style={{ display: twoPageMode && !showSwipeWBW ? "block" : "none" }} className="mushaf-spread">
-          <div className="mushaf-spread-pages">
-            {currentPage + 1 <= TOTAL_PAGES && (
-              <>
-                <div className="mushaf-spread-page">
-                  <MushafPage
-                    currentPage={currentPage + 1}
-                    highlightVerseKey={highlightVerseKey}
-                    highlightWord={highlightWord}
-                    onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-                    showTranslation={showTranslation}
-                    translationMap={translationMapRight}
-                  />
-                </div>
-                <div className="mushaf-spine-line" />
-              </>
+          <h1 className="text-sm font-semibold tracking-tight text-center">
+            Quran <span className="font-normal text-[var(--muted)]">Easy</span>
+          </h1>
+
+          <div className="flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" aria-label={currentPage % 2 === 1 ? "Right page" : "Left page"}>
+              <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" fill="none" stroke="currentColor" strokeWidth={1.25} />
+              <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" strokeWidth={1} strokeDasharray="2 1.5" opacity={0.5} />
+              {currentPage % 2 === 1 ? (
+                <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292V6.042Z" fill="currentColor" />
+              ) : (
+                <path d="M12 6.042a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292V6.042Z" fill="currentColor" />
+              )}
+            </svg>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+              aria-label="Toggle dark mode"
+            >
+            {darkMode ? (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+              </svg>
             )}
-            <div className="mushaf-spread-page">
-              <MushafPage
-                currentPage={currentPage}
-                highlightVerseKey={highlightVerseKey}
-                highlightWord={highlightWord}
-                onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-                showTranslation={showTranslation}
-                translationMap={translationMap}
-              />
-            </div>
+          </button>
           </div>
         </div>
-        <div style={{ display: !twoPageMode && !showSwipeWBW ? "block" : "none" }}>
-          <MushafPage
-            currentPage={currentPage}
-            highlightVerseKey={highlightVerseKey}
-            highlightWord={highlightWord}
-            onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-            showTranslation={showTranslation}
-            translationMap={translationMap}
-            showWordByWord={showWordByWord}
-          />
-        </div>
-        {error && (
-          <div className="max-w-3xl mx-auto px-4 py-4">
-            <div className="border border-[var(--border)] rounded-lg p-4 text-center">
-              <p className="text-sm text-[var(--muted)]">{error}</p>
-              <button
-                onClick={() => setRetryCount((c) => c + 1)}
-                className="mt-2 px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
-              >
-                Retry
-              </button>
+      </header>
+
+      <main className="mobile-content" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        <div style={{ display: simpleMode ? "none" : "block" }}>
+          <div style={{ display: showSwipeWBW ? "block" : "none" }}>
+            <SwipeWBWView
+              ayahs={ayahs}
+              currentPage={currentPage}
+              mlFontSize={mlFontSize}
+              currentAyahIndex={currentAyahIndex}
+              onAyahIndexChange={setCurrentAyahIndex}
+              translationMap={translationMap}
+            />
+          </div>
+          <div style={{ display: twoPageMode && !showSwipeWBW ? "block" : "none" }} className="mushaf-spread">
+            <div className="mushaf-spread-pages">
+              {currentPage + 1 <= TOTAL_PAGES && (
+                <>
+                  <div className="mushaf-spread-page">
+                    <MushafPage
+                      currentPage={currentPage + 1}
+                      highlightVerseKey={highlightVerseKey}
+                      highlightWord={highlightWord}
+                      onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
+                      showTranslation={showTranslation}
+                      translationMap={translationMapRight}
+                    />
+                  </div>
+                  <div className="mushaf-spine-line" />
+                </>
+              )}
+              <div className="mushaf-spread-page">
+                <MushafPage
+                  currentPage={currentPage}
+                  highlightVerseKey={highlightVerseKey}
+                  highlightWord={highlightWord}
+                  onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
+                  showTranslation={showTranslation}
+                  translationMap={translationMap}
+                />
+              </div>
             </div>
           </div>
-        )}
+          <div style={{ display: !twoPageMode && !showSwipeWBW ? "block" : "none" }}>
+            <MushafPage
+              currentPage={currentPage}
+              highlightVerseKey={highlightVerseKey}
+              highlightWord={highlightWord}
+              onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
+              showTranslation={showTranslation}
+              translationMap={translationMap}
+              showWordByWord={showWordByWord}
+            />
+          </div>
+          {error && (
+            <div className="max-w-3xl mx-auto px-4 py-4">
+              <div className="border border-[var(--border)] rounded-lg p-4 text-center">
+                <p className="text-sm text-[var(--muted)]">{error}</p>
+                <button
+                  onClick={() => setRetryCount((c) => c + 1)}
+                  className="mt-2 px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{ display: simpleMode ? "block" : "none" }}>
+          <QuranPage pageData={pageData} currentPage={currentPage} loading={false} />
+        </div>
+      </main>
+
+      <div
+        className="mobile-player"
+        style={{
+          display: audioVisible ? "block" : "none",
+        }}
+      >
+        <AudioPlayer
+          key={currentPage}
+          ayahs={ayahs}
+          reciter={reciter}
+          onReciterChange={setReciter}
+          onPageComplete={goNext}
+          onVerseChange={(key) => setHighlightVerseKey(key)}
+          onWordHighlight={(word) => setHighlightWord(word)}
+          audioMode={audioMode}
+          onAudioModeChange={setAudioMode}
+          highlightVerseKey={highlightVerseKey}
+          compact={true}
+          pageLabel={pageLabel}
+          onGoNext={goNext}
+          onGoPrev={goPrev}
+          canGoNext={twoPageMode ? currentPage + 1 < TOTAL_PAGES : currentPage < TOTAL_PAGES}
+          canGoPrev={currentPage > 1}
+        />
       </div>
-      <div style={{ display: simpleMode ? "block" : "none" }}>
-        <QuranPage pageData={pageData} currentPage={currentPage} loading={false} />
-      </div>
-    </main>
 
       <div
         className="bottom-bar"
-        style={{ transform: scrolledDown ? "translateY(100%)" : "translateY(0)", transition: "transform 0.3s ease-in-out" }}
+        style={{ display: audioVisible ? "none" : "flex" }}
       >
         <button
           onClick={goNext}
@@ -397,26 +437,7 @@ export default function Home() {
           </svg>
         </button>
       </div>
-
-      {audioVisible && (
-      <div
-        className="fixed left-0 right-0 z-20 overflow-hidden"
-        style={{ bottom: "2.75rem", transform: scrolledDown ? "translateY(calc(100% + 3rem))" : "translateY(0)", transition: "transform 0.3s ease-in-out" }}
-      >
-        <AudioPlayer
-          key={currentPage}
-          ayahs={ayahs}
-          reciter={reciter}
-          onReciterChange={setReciter}
-          onPageComplete={goNext}
-          onVerseChange={(key) => setHighlightVerseKey(key)}
-          onWordHighlight={(word) => setHighlightWord(word)}
-          audioMode={audioMode}
-          onAudioModeChange={setAudioMode}
-          highlightVerseKey={highlightVerseKey}
-        />
-      </div>
-      )}
+    </div>
 
     <Sidebar
       isOpen={sidebarOpen}
@@ -441,6 +462,8 @@ export default function Home() {
       onLineHeightChange={setLineHeight}
       surahName={surahName}
       juzNumber={juzNumber}
+      reciter={reciter}
+      onReciterChange={setReciter}
     />
     </ErrorBoundary>
   );

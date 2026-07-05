@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { TOTAL_PAGES, JUZ_DATA } from "@/lib/types";
+import { TOTAL_PAGES, JUZ_DATA, Reciter, RECITERS } from "@/lib/types";
+import DownloadManager from "@/components/DownloadManager";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ interface SidebarProps {
   onLineHeightChange: (fn: (prev: number) => number) => void;
   surahName?: string;
   juzNumber?: number;
+  reciter?: Reciter;
+  onReciterChange?: (reciter: Reciter) => void;
 }
 
 interface SurahItem {
@@ -78,6 +81,8 @@ export default function Sidebar({
   onLineHeightChange,
   surahName,
   juzNumber,
+  reciter,
+  onReciterChange,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"navigate" | "settings">("navigate");
   const [navTab, setNavTab] = useState<"surah" | "juz" | "page">("surah");
@@ -85,6 +90,7 @@ export default function Sidebar({
   const [loading, setLoading] = useState(false);
   const [pageInput, setPageInput] = useState(currentPage.toString());
   const fetchedRef = useRef(false);
+  const [showDownloads, setShowDownloads] = useState(false);
 
   useEffect(() => {
     if (isOpen && !fetchedRef.current) {
@@ -276,6 +282,38 @@ export default function Sidebar({
                   {juzNumber && <span className="text-[10px] text-[var(--muted)] ml-2">Juz {juzNumber}</span>}
                 </div>
               )}
+
+              <div className="px-3 py-2">
+                <label className="text-xs text-[var(--muted)] mb-1.5 block">Reciter</label>
+                <select
+                  value={reciter?.id}
+                  onChange={(e) => {
+                    const selected = RECITERS.find((r) => r.id === e.target.value);
+                    if (selected && onReciterChange) {
+                      onReciterChange(selected);
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--foreground)]"
+                >
+                  {RECITERS.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={() => setShowDownloads(true)}
+                className="sidebar-toggle-btn"
+              >
+                <span className="sidebar-toggle-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                </span>
+                <span>Downloads</span>
+              </button>
 
               <button
                 onClick={onToggleWordByWord}
@@ -477,6 +515,10 @@ export default function Sidebar({
           </a>
         </div>
       </div>
+
+      {showDownloads && (
+        <DownloadManager isOpen={showDownloads} onClose={() => setShowDownloads(false)} />
+      )}
     </>
   );
 }

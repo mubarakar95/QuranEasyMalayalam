@@ -1,9 +1,28 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Reciter, RECITERS, AyahInfo, HighlightWord, AudioMode, RepeatMode } from "@/lib/types";
+import { Reciter, AyahInfo, HighlightWord, AudioMode, RepeatMode } from "@/lib/types";
 import { getAudioUrl, getMalayalamAyahAudioUrl } from "@/lib/quran-api";
 import { fetchChapterSegments, findWordAtTime } from "@/lib/audio-segments";
+
+let dbModule: typeof import("@/lib/db") | null = null;
+async function getDb() {
+  if (!dbModule) {
+    try { dbModule = await import("@/lib/db"); } catch { return null; }
+  }
+  return dbModule;
+}
+
+async function getAudioSource(url: string, reciterId: string, surahNumber: number, ayahInSurah: number): Promise<string> {
+  const db = await getDb();
+  if (db) {
+    const cached = await db.getAudioBlob(reciterId, surahNumber, ayahInSurah);
+    if (cached) {
+      return URL.createObjectURL(cached);
+    }
+  }
+  return url;
+}
 
 interface AudioPlayerProps {
   ayahs: AyahInfo[];
@@ -15,6 +34,12 @@ interface AudioPlayerProps {
   audioMode?: AudioMode;
   onAudioModeChange?: (mode: AudioMode) => void;
   highlightVerseKey?: string | null;
+  compact?: boolean;
+  pageLabel?: string;
+  onGoNext?: () => void;
+  onGoPrev?: () => void;
+  canGoNext?: boolean;
+  canGoPrev?: boolean;
 }
 
 const audioHandlers = new WeakMap<HTMLAudioElement, {
@@ -48,6 +73,12 @@ export default function AudioPlayer({
   audioMode = "arabic",
   onAudioModeChange,
   highlightVerseKey,
+  compact = false,
+  pageLabel,
+  onGoNext,
+  onGoPrev,
+  canGoNext = true,
+  canGoPrev = true,
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
@@ -241,13 +272,30 @@ export default function AudioPlayer({
     } else if (mode === "both" && playingMalayalam) {
       url = getMalayalamAyahAudioUrl(ayah.surah.number, ayah.numberInSurah);
     } else {
-      url = getAudioUrl(reciter.id, ayah.number);
+      url = getAudioUrl(reciter, ayah.surah.number, ayah.numberInSurah, ayah.number);
     }
 
-    const audio = new Audio(url);
+    const audioSourcePromise = (mode === "malayalam" || (mode === "both" && playingMalayalam))
+      ? Promise.resolve(url)
+      : getAudioSource(url, reciter.id, ayah.surah.number, ayah.numberInSurah);
+
+    let objectUrl: string | null = null;
+    const audio = new Audio();
     audio.volume = volumeRef.current;
     audio.playbackRate = playbackRateRef.current;
     audioRef.current = audio;
+
+    audioSourcePromise.then((src) => {
+      if (stoppedRef.current) {
+        if (src.startsWith("blob:")) URL.revokeObjectURL(src);
+        return;
+      }
+      if (src.startsWith("blob:")) objectUrl = src;
+      audio.src = src;
+      audio.play().catch(() => {
+        setIsPlaying(false);
+      });
+    });
 
     if (!playingMalayalam && mode !== "malayalam") {
       currentWordIndexRef.current = null;
@@ -287,6 +335,7 @@ export default function AudioPlayer({
 
     return () => {
       stoppedRef.current = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
       cleanupAudio(audio);
       cancelAnimationFrame(rafRef.current);
       if (audioRef.current === audio) {
@@ -373,6 +422,40 @@ export default function AudioPlayer({
     []
   );
 
+  const handleModeNavigation = useCallback((direction: 1 | -1, mode: AudioMode) => {
+    if (ayahsRef.current.length === 0) return;
+    if (audioModeRef.current !== mode) {
+      onAudioModeChange?.(mode);
+    }
+    setPlayingMalayalam(mode === "both");
+    setPlayLoop(0);
+    setCurrentAyahIndex((prev) => {
+      const next = prev + direction;
+      if (next < 0 || next >= ayahsRef.current.length) return prev;
+      return next;
+    });
+    setIsPlaying(true);
+  }, [onAudioModeChange]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+      switch (e.key.toLowerCase()) {
+        case "w": e.preventDefault(); handleModeNavigation(-1, "arabic"); break;
+        case "s": e.preventDefault(); handleModeNavigation(1, "arabic"); break;
+        case "q": e.preventDefault(); handleModeNavigation(-1, "malayalam"); break;
+        case "a": e.preventDefault(); handleModeNavigation(1, "malayalam"); break;
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleModeNavigation, togglePlay]);
+
   const cycleSpeed = useCallback(() => {
     setPlaybackRate((prev) => {
       const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
@@ -399,57 +482,6 @@ export default function AudioPlayer({
 
   return (
     <div className="audio-player">
-      <div className="flex items-center justify-between mb-1">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const idx = AUDIO_MODES.indexOf(audioMode);
-              const next = AUDIO_MODES[(idx + 1) % AUDIO_MODES.length];
-              stop();
-              onAudioModeChange?.(next);
-            }}
-            className="px-2 py-1 rounded text-[11px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
-            aria-label="Audio mode"
-          >
-            {shortModeLabel(audioMode)}
-          </button>
-          {audioMode !== "malayalam" && (
-            <select
-              value={reciter.id}
-              onChange={(e) => {
-                const selected = RECITERS.find((r) => r.id === e.target.value);
-                if (selected) {
-                  stop();
-                  onReciterChange(selected);
-                }
-              }}
-              className="reciter-select"
-              aria-label="Select reciter"
-            >
-              {RECITERS.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        <span className="text-[10px] text-[var(--muted)] tabular-nums">
-          {isPlaying ? (
-            <>
-              {currentAyahIndex + 1} / {ayahs.length}
-              {audioMode === "both" && (
-                <span className="ml-1 text-[9px]">
-                  {playingMalayalam ? "(മലയാളം)" : "(Arabic)"}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="font-medium">{shortModeLabel(audioMode)}</span>
-          )}
-        </span>
-      </div>
-
       <div className="flex items-center gap-2">
         <span className="text-[10px] tabular-nums text-[var(--muted)] min-w-[2.5rem] text-right">{formatTime(currentTime)}</span>
         <input
@@ -466,62 +498,110 @@ export default function AudioPlayer({
         <span className="text-[10px] tabular-nums text-[var(--muted)] min-w-[2.5rem]">{formatTime(duration)}</span>
       </div>
 
-      <div className="flex items-center justify-center gap-1 mt-1.5">
-        <button onClick={() => skipAyah(-1)} disabled={currentAyahIndex === 0} className="player-btn" aria-label="Previous ayah">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 16.811c0 .864-.933 1.406-1.683.947l-7.108-4.061a1.125 1.125 0 0 1 0-1.95l7.108-4.061A1.125 1.125 0 0 1 21 8.689v8.122ZM11.25 16.811c0 .864-.933 1.406-1.683.947l-7.108-4.061a1.125 1.125 0 0 1 0-1.95l7.108-4.061a1.125 1.125 0 0 1 1.683.947v8.122Z" />
-          </svg>
-        </button>
-
-        <button onClick={togglePlay} className="player-btn-play" aria-label={isPlaying ? "Pause" : "Play"}>
-          {isPlaying ? (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-            </svg>
-          )}
-        </button>
-
-        <button onClick={() => skipAyah(1)} disabled={currentAyahIndex >= ayahs.length - 1} className="player-btn" aria-label="Next ayah">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.189c0-.864.933-1.406 1.683-.947l7.108 4.061a1.125 1.125 0 0 1 0 1.95l-7.108 4.061A1.125 1.125 0 0 1 3 16.311V7.189ZM12.75 7.189c0-.864.933-1.406 1.683-.947l7.108 4.061a1.125 1.125 0 0 1 0 1.95l-7.108 4.061a1.125 1.125 0 0 1-1.683-.986V7.189Z" />
-          </svg>
-        </button>
-
-        <button onClick={stop} className="player-btn" aria-label="Stop">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-            <path fillRule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clipRule="evenodd" />
-          </svg>
-        </button>
-
-        <button
-          onClick={() => setRepeatMode((r) => r === "none" ? "ayah" : r === "ayah" ? "page" : "none")}
-          className={`player-btn relative ${repeatMode !== "none" ? "bg-[var(--foreground)] text-[var(--background)] rounded-sm" : ""}`}
-          aria-label={`Repeat: ${repeatMode === "none" ? "off" : repeatMode === "ayah" ? "ayah" : "page"}`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3-3 3" />
-          </svg>
-          {repeatMode === "ayah" && (
-            <span className="absolute -top-0.5 -right-0.5 text-[7px] font-bold leading-none">1</span>
-          )}
-          {repeatMode === "page" && (
-            <span className="absolute -top-0.5 -right-0.5 text-[7px] font-bold leading-none">↺</span>
-          )}
-        </button>
-
-        <div className="flex items-center gap-1 ml-2 pl-2 border-l border-[var(--border)]">
+      <div className="flex items-center justify-between" style={compact ? { marginTop: '0.125rem' } : { marginTop: '0.375rem' }}>
+        <div className="flex items-center gap-1">
           <button
-            onClick={cycleSpeed}
-            className="px-1.5 py-0.5 rounded text-[10px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
-            aria-label="Playback speed"
+            onClick={() => {
+              const idx = AUDIO_MODES.indexOf(audioMode);
+              const next = AUDIO_MODES[(idx + 1) % AUDIO_MODES.length];
+              stop();
+              onAudioModeChange?.(next);
+            }}
+            className="px-2 py-1 rounded text-[11px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
+            aria-label="Audio mode"
           >
-            {playbackRate}x
+            {shortModeLabel(audioMode)}
           </button>
+
+          <button onClick={() => skipAyah(-1)} disabled={currentAyahIndex === 0} className="player-btn" aria-label="Previous ayah">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 16.811c0 .864-.933 1.406-1.683.947l-7.108-4.061a1.125 1.125 0 0 1 0-1.95l7.108-4.061A1.125 1.125 0 0 1 21 8.689v8.122ZM11.25 16.811c0 .864-.933 1.406-1.683.947l-7.108-4.061a1.125 1.125 0 0 1 0-1.95l7.108-4.061a1.125 1.125 0 0 1 1.683.947v8.122Z" />
+            </svg>
+          </button>
+
+          <button onClick={togglePlay} className="player-btn-play" aria-label={isPlaying ? "Pause" : "Play"}>
+            {isPlaying ? (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={compact ? "w-4 h-4" : "w-5 h-5"}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={compact ? "w-4 h-4" : "w-5 h-5"}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+              </svg>
+            )}
+          </button>
+
+          <button onClick={() => skipAyah(1)} disabled={currentAyahIndex >= ayahs.length - 1} className="player-btn" aria-label="Next ayah">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.189c0-.864.933-1.406 1.683-.947l7.108 4.061a1.125 1.125 0 0 1 0 1.95l-7.108 4.061A1.125 1.125 0 0 1 3 16.311V7.189ZM12.75 7.189c0-.864.933-1.406 1.683-.947l7.108 4.061a1.125 1.125 0 0 1 0 1.95l-7.108 4.061a1.125 1.125 0 0 1-1.683-.986V7.189Z" />
+            </svg>
+          </button>
+
+          <button onClick={stop} className="player-btn" aria-label="Stop">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={compact ? "w-3 h-3" : "w-3.5 h-3.5"}>
+              <path fillRule="evenodd" d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z" clipRule="evenodd" />
+            </svg>
+          </button>
+
+          <button
+            onClick={() => setRepeatMode((r) => r === "none" ? "ayah" : r === "ayah" ? "page" : "none")}
+            className={`player-btn relative ${repeatMode !== "none" ? "bg-[var(--foreground)] text-[var(--background)] rounded-sm" : ""}`}
+            aria-label={`Repeat: ${repeatMode === "none" ? "off" : repeatMode === "ayah" ? "ayah" : "page"}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={compact ? "w-3 h-3" : "w-3.5 h-3.5"}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3-3 3" />
+            </svg>
+            {repeatMode === "ayah" && (
+              <span className="absolute -top-0.5 -right-0.5 text-[7px] font-bold leading-none">1</span>
+            )}
+            {repeatMode === "page" && (
+              <span className="absolute -top-0.5 -right-0.5 text-[7px] font-bold leading-none">↺</span>
+            )}
+          </button>
+
+          <div className="flex items-center gap-1" style={compact ? { paddingLeft: '0.25rem', borderLeft: '1px solid var(--border)' } : { paddingLeft: '0.5rem', borderLeft: '1px solid var(--border)' }}>
+            <button
+              onClick={cycleSpeed}
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
+              aria-label="Playback speed"
+            >
+              {playbackRate}x
+            </button>
+          </div>
         </div>
+
+        {compact && (
+          <div className="player-page-nav">
+            <button onClick={onGoPrev} disabled={!canGoPrev} aria-label="Previous page">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            <span className="tabular-nums whitespace-nowrap">{pageLabel}</span>
+            <button onClick={onGoNext} disabled={!canGoNext} aria-label="Next page">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {!compact && (
+          <span className="text-[10px] text-[var(--muted)] tabular-nums">
+            {isPlaying ? (
+              <>
+                {currentAyahIndex + 1} / {ayahs.length}
+                {audioMode === "both" && (
+                  <span className="ml-1 text-[9px]">
+                    {playingMalayalam ? "(മലയാളം)" : "(Arabic)"}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="font-medium">{shortModeLabel(audioMode)}</span>
+            )}
+          </span>
+        )}
       </div>
     </div>
   );

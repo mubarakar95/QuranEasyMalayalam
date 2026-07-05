@@ -27,6 +27,14 @@ const CDN_URL = "https://cdn.jsdelivr.net/gh/MohamadHajjRabee/quran-qcf4@main";
 const fontCache = new Set<string>();
 const pageCache = new Map<number, PageData2>();
 
+let dbModule: typeof import("./db") | null = null;
+async function getDb() {
+  if (!dbModule) {
+    try { dbModule = await import("./db"); } catch { return null; }
+  }
+  return dbModule;
+}
+
 export function withTimeout<T>(promise: Promise<T>, ms: number, label?: string): Promise<T> {
   return Promise.race([
     promise,
@@ -37,6 +45,12 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label?: string):
 }
 
 async function fetchPageJson(page: number): Promise<PageData2> {
+  const db = await getDb();
+  if (db) {
+    const cached = await db.getPageData(page);
+    if (cached) return cached as PageData2;
+  }
+
   const padded = page.toString().padStart(3, "0");
 
   const urls = [
@@ -45,16 +59,23 @@ async function fetchPageJson(page: number): Promise<PageData2> {
     `${RAW_BASE}/pages/${padded}.json`,
   ];
 
+  let data: PageData2 | null = null;
   for (const url of urls) {
     try {
       const res = await withTimeout(fetch(url), 10000, `Fetch page ${page}`);
-      if (res.ok) return await res.json();
+      if (res.ok) { data = await res.json(); break; }
     } catch {
       /* try next fallback */
     }
   }
 
-  throw new Error("Failed to load page data. Please check your connection and try again.");
+  if (!data) throw new Error("Failed to load page data. Please check your connection and try again.");
+
+  if (db) {
+    try { await db.storePageData(page, data); } catch { /* ignore */ }
+  }
+
+  return data;
 }
 
 export async function fetchPageData(page: number): Promise<PageData2> {
