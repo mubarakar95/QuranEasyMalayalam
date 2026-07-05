@@ -275,31 +275,17 @@ export default function AudioPlayer({
       url = getAudioUrl(reciter, ayah.surah.number, ayah.numberInSurah, ayah.number);
     }
 
-    const audioSourcePromise = (mode === "malayalam" || (mode === "both" && playingMalayalam))
+    const isOfflineCheck = (mode === "malayalam" || (mode === "both" && playingMalayalam));
+    const audioSourcePromise = isOfflineCheck
       ? Promise.resolve(url)
       : getAudioSource(url, reciter.id, ayah.surah.number, ayah.numberInSurah);
 
     let objectUrl: string | null = null;
+    let playCalled = false;
     const audio = new Audio();
     audio.volume = volumeRef.current;
     audio.playbackRate = playbackRateRef.current;
     audioRef.current = audio;
-
-    audioSourcePromise.then((src) => {
-      if (stoppedRef.current) {
-        if (src.startsWith("blob:")) URL.revokeObjectURL(src);
-        return;
-      }
-      if (src.startsWith("blob:")) objectUrl = src;
-      audio.src = src;
-      audio.play().catch(() => {
-        setIsPlaying(false);
-      });
-    });
-
-    if (!playingMalayalam && mode !== "malayalam") {
-      currentWordIndexRef.current = null;
-    }
 
     const handleEnded = () => {
       playNextAyahOrMalayalam();
@@ -329,8 +315,21 @@ export default function AudioPlayer({
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
 
-    audio.play().catch(() => {
-      setIsPlaying(false);
+    audioSourcePromise.then((src) => {
+      if (stoppedRef.current || audioRef.current !== audio) {
+        if (src.startsWith("blob:")) URL.revokeObjectURL(src);
+        return;
+      }
+      if (src.startsWith("blob:")) objectUrl = src;
+      audio.src = src;
+      audio.load();
+      audio.play().then(() => {
+        playCalled = true;
+      }).catch(() => {
+        if (audioRef.current === audio) {
+          setIsPlaying(false);
+        }
+      });
     });
 
     return () => {
