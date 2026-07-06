@@ -19,7 +19,7 @@ export default function Home() {
   const [simpleMode, setSimpleMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [reciter, setReciter] = useState<Reciter>(RECITERS[0]);
-  const [darkMode, setDarkMode] = useState(false);
+  const [theme, setTheme] = useState<"light" | "creme" | "dark">("light");
   const [retryCount, setRetryCount] = useState(0);
   const [highlightVerseKey, setHighlightVerseKey] = useState<string | null>(null);
   const [highlightWord, setHighlightWord] = useState<HighlightWord | null>(null);
@@ -41,9 +41,14 @@ export default function Home() {
       if (window.location.search.includes("simple=1")) setSimpleMode(true);
       const savedPage = parseInt(localStorage.getItem("quran-page") || "1");
       if (savedPage >= 1 && savedPage <= TOTAL_PAGES) setCurrentPage(savedPage);
-      const savedDark = localStorage.getItem("quran-dark-mode");
-      if (savedDark === "true") setDarkMode(true);
-      else if (savedDark === null && window.matchMedia("(prefers-color-scheme: dark)").matches) setDarkMode(true);
+      const savedTheme = localStorage.getItem("quran-theme") as "light" | "creme" | "dark" | null;
+      if (savedTheme && ["light", "creme", "dark"].includes(savedTheme)) {
+        setTheme(savedTheme);
+      } else {
+        const savedDark = localStorage.getItem("quran-dark-mode");
+        if (savedDark === "true") setTheme("dark");
+        else if (savedDark === null && window.matchMedia("(prefers-color-scheme: dark)").matches) setTheme("dark");
+      }
       const savedTranslation = localStorage.getItem("quran-show-translation");
       if (savedTranslation === "true") setShowTranslation(true);
       const savedWordByWord = localStorage.getItem("quran-show-word-by-word");
@@ -129,9 +134,10 @@ export default function Home() {
   }, [currentPage, showTranslation, showSwipeWBW, twoPageMode]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-    try { localStorage.setItem("quran-dark-mode", darkMode.toString()); } catch {}
-  }, [darkMode]);
+    document.documentElement.classList.remove("dark", "creme");
+    if (theme !== "light") document.documentElement.classList.add(theme);
+    try { localStorage.setItem("quran-theme", theme); } catch {}
+  }, [theme]);
 
   useEffect(() => {
     document.documentElement.style.setProperty("--ml-font-size", `${mlFontSize}%`);
@@ -297,13 +303,17 @@ export default function Home() {
               )}
             </svg>
             <button
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={() => setTheme((t) => t === "light" ? "dark" : t === "dark" ? "creme" : "light")}
               className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
-              aria-label="Toggle dark mode"
+              aria-label="Toggle theme"
             >
-            {darkMode ? (
+            {theme === "dark" ? (
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+              </svg>
+            ) : theme === "creme" ? (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
               </svg>
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -467,6 +477,8 @@ export default function Home() {
       juzNumber={juzNumber}
       reciter={reciter}
       onReciterChange={setReciter}
+      theme={theme}
+      onThemeChange={setTheme}
     />
     </ErrorBoundary>
   );

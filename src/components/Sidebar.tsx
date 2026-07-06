@@ -29,6 +29,8 @@ interface SidebarProps {
   juzNumber?: number;
   reciter?: Reciter;
   onReciterChange?: (reciter: Reciter) => void;
+  theme?: "light" | "creme" | "dark";
+  onThemeChange?: (theme: "light" | "creme" | "dark") => void;
 }
 
 interface SurahItem {
@@ -83,6 +85,8 @@ export default function Sidebar({
   juzNumber,
   reciter,
   onReciterChange,
+  theme = "light",
+  onThemeChange,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"navigate" | "settings">("navigate");
   const [navTab, setNavTab] = useState<"surah" | "juz" | "page">("surah");
@@ -301,6 +305,25 @@ export default function Sidebar({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="px-3 py-2">
+                <label className="text-xs text-[var(--muted)] mb-1.5 block">Theme</label>
+                <div className="flex gap-1">
+                  {(["light", "creme", "dark"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => onThemeChange?.(t)}
+                      className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all border ${
+                        theme === t
+                          ? "bg-[var(--foreground)] text-[var(--background)] border-[var(--foreground)]"
+                          : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)]"
+                      }`}
+                    >
+                      {t === "light" ? "Light" : t === "creme" ? "Creme" : "Dark"}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <button
