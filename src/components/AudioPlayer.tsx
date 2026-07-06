@@ -598,13 +598,13 @@ export default function AudioPlayer({
 
         {compact && (
           <div className="player-page-nav">
-            <button onClick={onGoPrev} disabled={!canGoPrev} aria-label="Previous page">
+            <button onClick={onGoNext} disabled={!canGoNext} aria-label="Next page">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
               </svg>
             </button>
             <span className="tabular-nums whitespace-nowrap">{pageLabel}</span>
-            <button onClick={onGoNext} disabled={!canGoNext} aria-label="Next page">
+            <button onClick={onGoPrev} disabled={!canGoPrev} aria-label="Previous page">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
