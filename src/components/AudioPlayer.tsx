@@ -436,6 +436,20 @@ export default function AudioPlayer({
     setIsPlaying(true);
   }, [onAudioModeChange]);
 
+  const handleSwitchMode = useCallback(() => {
+    if (ayahsRef.current.length === 0) return;
+    const current = audioModeRef.current;
+    if (current === "arabic") {
+      onAudioModeChange?.("malayalam");
+      setPlayingMalayalam(false);
+    } else {
+      onAudioModeChange?.("arabic");
+      setPlayingMalayalam(false);
+    }
+    setPlayLoop(0);
+    setIsPlaying(true);
+  }, [onAudioModeChange]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
@@ -449,11 +463,12 @@ export default function AudioPlayer({
         case "s": e.preventDefault(); handleModeNavigation(1, "arabic"); break;
         case "q": e.preventDefault(); handleModeNavigation(-1, "malayalam"); break;
         case "a": e.preventDefault(); handleModeNavigation(1, "malayalam"); break;
+        case "e": e.preventDefault(); handleSwitchMode(); break;
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleModeNavigation, togglePlay]);
+  }, [handleModeNavigation, handleSwitchMode, togglePlay]);
 
   const cycleSpeed = useCallback(() => {
     setPlaybackRate((prev) => {
