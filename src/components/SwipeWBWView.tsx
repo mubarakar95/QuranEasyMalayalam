@@ -221,7 +221,7 @@ export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAy
     const dy = e.clientY - t.startY;
     touchRef.current = null;
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-      if (dx > 0) goNext();
+      if (dx < 0) goNext();
       else goPrev();
     }
   }, [goNext, goPrev]);
@@ -229,9 +229,9 @@ export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAy
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-      // RTL: left/up → next, right/down → prev
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); goNext(); }
-      else if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); goPrev(); }
+      // RTL: right/down → next, left/up → prev
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); goNext(); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); goPrev(); }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -313,9 +313,9 @@ export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAy
       <div className="swipe-header">
         <button
           className="swipe-nav-btn"
-          disabled={currentAyahIndex === ayahs.length - 1}
-          onClick={goNext}
-          aria-label="Next ayah"
+          disabled={currentAyahIndex === 0}
+          onClick={goPrev}
+          aria-label="Previous ayah"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -331,9 +331,9 @@ export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAy
         </div>
         <button
           className="swipe-nav-btn"
-          disabled={currentAyahIndex === 0}
-          onClick={goPrev}
-          aria-label="Previous ayah"
+          disabled={currentAyahIndex === ayahs.length - 1}
+          onClick={goNext}
+          aria-label="Next ayah"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />

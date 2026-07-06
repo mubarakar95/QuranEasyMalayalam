@@ -228,10 +228,10 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-      if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
         goNext();
-      } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         goPrev();
       }
@@ -252,7 +252,7 @@ export default function Home() {
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
-      if (dx < 0) goNext();
+      if (dx > 0) goNext();
       else goPrev();
     }
   }, [goNext, goPrev]);
@@ -427,10 +427,10 @@ export default function Home() {
         style={{ display: audioVisible ? "none" : "flex" }}
       >
         <button
-          onClick={goNext}
-          disabled={twoPageMode ? currentPage + 1 >= TOTAL_PAGES : currentPage >= TOTAL_PAGES}
+          onClick={goPrev}
+          disabled={currentPage <= 1}
           className="bottom-nav-btn"
-          aria-label="Next page"
+          aria-label="Previous page"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -440,10 +440,10 @@ export default function Home() {
           {pageLabel} / {TOTAL_PAGES}
         </span>
         <button
-          onClick={goPrev}
-          disabled={currentPage <= 1}
+          onClick={goNext}
+          disabled={twoPageMode ? currentPage + 1 >= TOTAL_PAGES : currentPage >= TOTAL_PAGES}
           className="bottom-nav-btn"
-          aria-label="Previous page"
+          aria-label="Next page"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
