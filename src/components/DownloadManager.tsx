@@ -48,6 +48,10 @@ const SURAH_NAMES = [
   "Al-Masad", "Al-Ikhlas", "Al-Falaq", "An-Nas",
 ];
 
+function proxyAudioUrl(url: string): string {
+  return `/api/audio?url=${encodeURIComponent(url)}`;
+}
+
 const globalAyahOffset = (() => {
   const offsets = new Array(115);
   offsets[0] = 0;
@@ -108,26 +112,32 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
     const ayahCount = SURAH_AYAH_COUNTS[surahNum - 1];
     setDownloading(true);
     setProgress({ current: 0, total: ayahCount, label: SURAH_NAMES[surahNum - 1] });
+    let failed = 0;
     for (let a = 1; a <= ayahCount; a++) {
       try {
         const globalAyah = getGlobalAyahNumber(surahNum, a);
         const url = getAudioUrl(reciter, surahNum, a, globalAyah);
-        const res = await fetch(url);
+        const res = await fetch(proxyAudioUrl(url));
         if (res.ok) {
           const blob = await res.blob();
           await storeAudioBlob(selectedReciter, surahNum, a, blob);
+        } else {
+          failed++;
         }
       } catch {
-        /* skip failed ayah */
+        failed++;
       }
       setProgress({ current: a, total: ayahCount, label: SURAH_NAMES[surahNum - 1] });
     }
     setDownloading(false);
     setAudioStatus((prev) => {
       const next = new Map(prev);
-      next.set(surahNum, true);
+      next.set(surahNum, failed < ayahCount);
       return next;
     });
+    if (failed > 0) {
+      console.warn(`Surah ${surahNum}: ${failed}/${ayahCount} ayahs failed to download`);
+    }
     await refreshStorage();
   }, [selectedReciter, refreshStorage]);
 
@@ -139,24 +149,27 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
     const totalAyahs = SURAH_AYAH_COUNTS.reduce((a, b) => a + b, 0);
     for (let s = 1; s <= 114; s++) {
       const ayahCount = SURAH_AYAH_COUNTS[s - 1];
+      let failed = 0;
       for (let a = 1; a <= ayahCount; a++) {
         ayahIdx++;
         try {
           const globalAyah = getGlobalAyahNumber(s, a);
           const url = getAudioUrl(reciter, s, a, globalAyah);
-          const res = await fetch(url);
+          const res = await fetch(proxyAudioUrl(url));
           if (res.ok) {
             const blob = await res.blob();
             await storeAudioBlob(selectedReciter, s, a, blob);
+          } else {
+            failed++;
           }
         } catch {
-          /* skip */
+          failed++;
         }
         setProgress({ current: ayahIdx, total: totalAyahs, label: SURAH_NAMES[s - 1] });
       }
       setAudioStatus((prev) => {
         const next = new Map(prev);
-        next.set(s, true);
+        next.set(s, failed < ayahCount);
         return next;
       });
     }
