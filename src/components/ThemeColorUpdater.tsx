@@ -27,7 +27,7 @@ export default function ThemeColorUpdater() {
       }
       meta.content = color;
 
-      document.documentElement.style.setProperty("--theme-color", color);
+      document.documentElement.style.backgroundColor = color;
     };
 
     const html = document.documentElement;
