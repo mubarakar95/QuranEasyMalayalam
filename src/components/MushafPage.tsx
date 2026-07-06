@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { PageLine, loadPageFont } from "@/lib/qcf4";
+import { PageLine, loadPageFont, fetchPageData } from "@/lib/qcf4";
 import { HighlightWord } from "@/lib/types";
 import { fetchMalayalamWBW } from "@/lib/malayalam-wbw";
 
@@ -183,12 +183,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
 
     const slowTimer = setTimeout(() => { if (!cancelled) setDataLoadingSlow(true); }, 10000);
 
-    const url = `/api/qcf4/${currentPage.toString().padStart(3, "0")}`;
-    fetch(url)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Server returned ${r.status}`);
-        return r.json();
-      })
+    fetchPageData(currentPage)
       .then((data) => {
         if (cancelled) return;
         setLines(data.lines || []);

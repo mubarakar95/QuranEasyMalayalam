@@ -25,6 +25,22 @@ const RAW_BASE = "https://raw.githubusercontent.com/MohamadHajjRabee/quran-qcf4/
 const CDN_URL = "https://cdn.jsdelivr.net/gh/MohamadHajjRabee/quran-qcf4@main";
 
 const fontCache = new Set<string>();
+const fontLoadOrder: string[] = [];
+const MAX_LOADED_FONTS = 12;
+
+function evictOldFonts() {
+  while (fontLoadOrder.length > MAX_LOADED_FONTS) {
+    const oldest = fontLoadOrder.shift()!;
+    fontCache.delete(oldest);
+    const faces = Array.from(document.fonts);
+    for (const face of faces) {
+      if (face.family === oldest) {
+        document.fonts.delete(face);
+      }
+    }
+  }
+}
+
 const pageCache = new Map<number, PageData2>();
 
 let dbModule: typeof import("./db") | null = null;
@@ -100,6 +116,8 @@ export async function loadPageFont(fontName: string): Promise<string> {
   await withTimeout(fontFace.load(), 20000, `Font load ${fontName}`);
   document.fonts.add(fontFace);
   fontCache.add(fontName);
+  fontLoadOrder.push(fontName);
+  evictOldFonts();
 
   if (needsBsml && !fontCache.has("QCF4_QBSML")) {
     const bsml = new FontFace(
@@ -110,6 +128,8 @@ export async function loadPageFont(fontName: string): Promise<string> {
     await withTimeout(bsml.load(), 20000, "Font load QCF4_QBSML");
     document.fonts.add(bsml);
     fontCache.add("QCF4_QBSML");
+    fontLoadOrder.push("QCF4_QBSML");
+    evictOldFonts();
   }
 
   return fontName;
