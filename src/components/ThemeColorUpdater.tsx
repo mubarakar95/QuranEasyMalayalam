@@ -16,6 +16,7 @@ export default function ThemeColorUpdater() {
       else if (classList.contains("creme")) theme = "creme";
 
       const color = THEME_COLORS[theme];
+
       let meta = document.querySelector<HTMLMetaElement>(
         'meta[name="theme-color"]'
       );
@@ -25,6 +26,8 @@ export default function ThemeColorUpdater() {
         document.head.appendChild(meta);
       }
       meta.content = color;
+
+      document.documentElement.style.setProperty("--theme-color", color);
     };
 
     const html = document.documentElement;
