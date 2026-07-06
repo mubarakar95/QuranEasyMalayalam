@@ -397,7 +397,7 @@ export default function Home() {
           ayahs={ayahs}
           reciter={reciter}
           onReciterChange={setReciter}
-          onPageComplete={goNext}
+
           onVerseChange={(key) => setHighlightVerseKey(key)}
           onWordHighlight={(word) => setHighlightWord(word)}
           audioMode={audioMode}
