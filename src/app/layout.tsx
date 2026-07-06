@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import ThemeColorUpdater from "@/components/ThemeColorUpdater";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#111111",
+  themeColor: "#ffffff",
   viewportFit: "cover",
 };
 
@@ -36,6 +37,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col overflow-x-hidden overflow-y-hidden bg-[var(--background)] text-[var(--foreground)]">
         <ServiceWorkerRegistration />
+        <ThemeColorUpdater />
         {children}
       </body>
     </html>
