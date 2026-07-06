@@ -84,37 +84,44 @@ export async function getDownloadedSurahs(
   reciterId: string,
   ayahCounts: number[]
 ): Promise<Map<number, boolean>> {
-  const db = await openDB();
   const map = new Map<number, boolean>();
-  const tx = db.transaction(AUDIO_STORE, "readonly");
-  const store = tx.objectStore(AUDIO_STORE);
+  try {
+    const db = await openDB();
+    const tx = db.transaction(AUDIO_STORE, "readonly");
+    const store = tx.objectStore(AUDIO_STORE);
 
-  const allKeys: string[] = await new Promise((resolve, reject) => {
-    const req = store.getAllKeys();
-    req.onsuccess = () => { resolve(req.result as string[]); };
-    req.onerror = () => { reject(req.error); };
-  });
-  db.close();
+    const allKeys: string[] = await new Promise((resolve, reject) => {
+      const req = store.getAllKeys();
+      req.onsuccess = () => { resolve(req.result as string[]); };
+      req.onerror = () => { reject(req.error); };
+    });
+    db.close();
 
-  const prefix = `${reciterId}_`;
-  const surahCounts = new Map<number, Set<number>>();
+    const prefix = `${reciterId}_`;
+    const surahCounts = new Map<number, Set<number>>();
 
-  for (const key of allKeys) {
-    if (!key.startsWith(prefix)) continue;
-    const rest = key.slice(prefix.length);
-    const parts = rest.split("_");
-    if (parts.length !== 2) continue;
-    const surah = parseInt(parts[0]);
-    const ayah = parseInt(parts[1]);
-    if (isNaN(surah) || isNaN(ayah)) continue;
-    if (!surahCounts.has(surah)) surahCounts.set(surah, new Set());
-    surahCounts.get(surah)!.add(ayah);
-  }
+    for (const key of allKeys) {
+      if (!key.startsWith(prefix)) continue;
+      const rest = key.slice(prefix.length);
+      const parts = rest.split("_");
+      if (parts.length !== 2) continue;
+      const surah = parseInt(parts[0]);
+      const ayah = parseInt(parts[1]);
+      if (isNaN(surah) || isNaN(ayah)) continue;
+      if (!surahCounts.has(surah)) surahCounts.set(surah, new Set());
+      surahCounts.get(surah)!.add(ayah);
+    }
 
-  for (let s = 1; s <= ayahCounts.length; s++) {
-    const expected = ayahCounts[s - 1];
-    const downloaded = surahCounts.get(s);
-    map.set(s, downloaded ? downloaded.size >= expected : false);
+    for (let s = 1; s <= ayahCounts.length; s++) {
+      const expected = ayahCounts[s - 1];
+      const downloaded = surahCounts.get(s);
+      map.set(s, downloaded ? downloaded.size >= expected : false);
+    }
+  } catch (e) {
+    console.error("getDownloadedSurahs failed:", e);
+    for (let s = 1; s <= ayahCounts.length; s++) {
+      map.set(s, false);
+    }
   }
 
   return map;
