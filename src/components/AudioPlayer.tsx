@@ -503,8 +503,20 @@ export default function AudioPlayer({
             onClick={() => {
               const idx = AUDIO_MODES.indexOf(audioMode);
               const next = AUDIO_MODES[(idx + 1) % AUDIO_MODES.length];
-              stop();
               onAudioModeChange?.(next);
+              setPlayLoop(0);
+              setPlayingMalayalam(next === "both");
+              if (audioRef.current) {
+                cleanupAudio(audioRef.current);
+                audioRef.current = null;
+              }
+              cancelAnimationFrame(rafRef.current);
+              currentWordIndexRef.current = null;
+              onWordHighlightRef.current?.(null);
+              if (isPlaying) {
+                setCurrentTime(0);
+                setDuration(0);
+              }
             }}
             className="px-2 py-1 rounded text-[11px] font-medium tabular-nums bg-[var(--surface)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors"
             aria-label="Audio mode"
