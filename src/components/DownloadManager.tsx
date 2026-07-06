@@ -8,6 +8,7 @@ import {
   storePageData,
   storeAyahPageData,
   storeTranslationPageData,
+  storeFontData,
   hasPageData,
   getStorageEstimate,
   clearAllOfflineData,
@@ -178,7 +179,11 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
   }, [selectedReciter, refreshStorage]);
 
   const downloadAllPages = useCallback(async () => {
+    const CDN_URL = "https://cdn.jsdelivr.net/gh/MohamadHajjRabee/quran-qcf4@main";
     setDownloading(true);
+
+    setProgress({ current: 0, total: TOTAL_PAGES, label: "Downloading pages..." });
+    const fontsNeeded = new Set<string>();
     for (let p = 1; p <= TOTAL_PAGES; p++) {
       try {
         const padded = p.toString().padStart(3, "0");
@@ -190,6 +195,12 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
         if (qcf4Res.status === "fulfilled" && qcf4Res.value.ok) {
           const data = await qcf4Res.value.json();
           await storePageData(p, data);
+          if (data.font) fontsNeeded.add(data.font);
+          for (const line of data.lines || []) {
+            for (const word of line.words || []) {
+              if (word.font) fontsNeeded.add(word.font);
+            }
+          }
         }
         if (ayahRes.status === "fulfilled" && ayahRes.value.ok) {
           const data = await ayahRes.value.json();
@@ -206,13 +217,28 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
       } catch {
         /* skip */
       }
-      setProgress({ current: p, total: TOTAL_PAGES, label: "Pages" });
+      setProgress({ current: p, total: TOTAL_PAGES, label: "Downloading pages..." });
       setPageStatus((prev) => {
         const next = new Map(prev);
         next.set(p, true);
         return next;
       });
     }
+
+    const fontList = [...fontsNeeded];
+    setProgress({ current: 0, total: fontList.length, label: "Downloading fonts..." });
+    for (let i = 0; i < fontList.length; i++) {
+      const fontName = fontList[i];
+      try {
+        const resp = await fetch(`${CDN_URL}/fonts-woff2/${fontName}_W.woff2`);
+        if (resp.ok) {
+          const buf = await resp.arrayBuffer();
+          await storeFontData(fontName, buf);
+        }
+      } catch { /* skip */ }
+      setProgress({ current: i + 1, total: fontList.length, label: "Downloading fonts..." });
+    }
+
     setDownloading(false);
     await refreshStorage();
   }, [refreshStorage]);

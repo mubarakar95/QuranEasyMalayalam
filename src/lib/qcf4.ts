@@ -25,22 +25,6 @@ const RAW_BASE = "https://raw.githubusercontent.com/MohamadHajjRabee/quran-qcf4/
 const CDN_URL = "https://cdn.jsdelivr.net/gh/MohamadHajjRabee/quran-qcf4@main";
 
 const fontCache = new Set<string>();
-const fontLoadOrder: string[] = [];
-const MAX_LOADED_FONTS = 12;
-
-function evictOldFonts() {
-  while (fontLoadOrder.length > MAX_LOADED_FONTS) {
-    const oldest = fontLoadOrder.shift()!;
-    fontCache.delete(oldest);
-    const faces = Array.from(document.fonts);
-    for (const face of faces) {
-      if (face.family === oldest) {
-        document.fonts.delete(face);
-      }
-    }
-  }
-}
-
 const pageCache = new Map<number, PageData2>();
 
 let dbModule: typeof import("./db") | null = null;
@@ -102,10 +86,20 @@ export async function fetchPageData(page: number): Promise<PageData2> {
   return data;
 }
 
-export async function loadPageFont(fontName: string): Promise<string> {
-  if (fontCache.has(fontName)) return fontName;
+async function loadSingleFont(fontName: string): Promise<void> {
+  if (fontCache.has(fontName)) return;
 
-  const needsBsml = fontName === "QCF4_Hafs_01";
+  const db = await getDb();
+  if (db) {
+    const cached = await db.getFontData(fontName);
+    if (cached) {
+      const fontFace = new FontFace(fontName, cached);
+      await fontFace.load();
+      document.fonts.add(fontFace);
+      fontCache.add(fontName);
+      return;
+    }
+  }
 
   const fontFace = new FontFace(
     fontName,
@@ -116,20 +110,23 @@ export async function loadPageFont(fontName: string): Promise<string> {
   await withTimeout(fontFace.load(), 20000, `Font load ${fontName}`);
   document.fonts.add(fontFace);
   fontCache.add(fontName);
-  fontLoadOrder.push(fontName);
-  evictOldFonts();
 
-  if (needsBsml && !fontCache.has("QCF4_QBSML")) {
-    const bsml = new FontFace(
-      "QCF4_QBSML",
-      `url(${CDN_URL}/fonts-woff2/QCF4_QBSML.woff2) format('woff2'), url(${CDN_URL}/fonts/QCF4_QBSML.ttf) format('truetype')`,
-      { style: "normal", weight: "normal" }
-    );
-    await withTimeout(bsml.load(), 20000, "Font load QCF4_QBSML");
-    document.fonts.add(bsml);
-    fontCache.add("QCF4_QBSML");
-    fontLoadOrder.push("QCF4_QBSML");
-    evictOldFonts();
+  if (db) {
+    try {
+      const resp = await fetch(`${CDN_URL}/fonts-woff2/${fontName}_W.woff2`);
+      if (resp.ok) {
+        const buf = await resp.arrayBuffer();
+        await db.storeFontData(fontName, buf);
+      }
+    } catch { /* ignore */ }
+  }
+}
+
+export async function loadPageFont(fontName: string): Promise<string> {
+  await loadSingleFont(fontName);
+
+  if (fontName === "QCF4_Hafs_01" && !fontCache.has("QCF4_QBSML")) {
+    await loadSingleFont("QCF4_QBSML");
   }
 
   return fontName;

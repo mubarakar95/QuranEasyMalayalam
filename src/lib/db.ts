@@ -1,8 +1,9 @@
 const DB_NAME = "quran-easy-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const AUDIO_STORE = "audio";
 const PAGE_STORE = "pages";
+const FONT_STORE = "fonts";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -14,6 +15,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(PAGE_STORE)) {
         db.createObjectStore(PAGE_STORE);
+      }
+      if (!db.objectStoreNames.contains(FONT_STORE)) {
+        db.createObjectStore(FONT_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -217,11 +221,37 @@ export async function getStorageEstimate(): Promise<{ used: number; quota: numbe
 export async function clearAllOfflineData(): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction([AUDIO_STORE, PAGE_STORE], "readwrite");
+    const tx = db.transaction([AUDIO_STORE, PAGE_STORE, FONT_STORE], "readwrite");
     tx.objectStore(AUDIO_STORE).clear();
     tx.objectStore(PAGE_STORE).clear();
+    tx.objectStore(FONT_STORE).clear();
     tx.oncomplete = () => { db.close(); resolve(); };
     tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export async function storeFontData(
+  fontName: string,
+  data: ArrayBuffer
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FONT_STORE, "readwrite");
+    tx.objectStore(FONT_STORE).put(data, fontName);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export async function getFontData(
+  fontName: string
+): Promise<ArrayBuffer | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FONT_STORE, "readonly");
+    const req = tx.objectStore(FONT_STORE).get(fontName);
+    req.onsuccess = () => { db.close(); resolve(req.result ?? null); };
+    req.onerror = () => { db.close(); reject(req.error); };
   });
 }
 
