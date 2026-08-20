@@ -323,6 +323,7 @@ export default function AudioPlayer({
       if (src.startsWith("blob:")) objectUrl = src;
       audio.src = src;
       audio.load();
+      audio.playbackRate = playbackRateRef.current;
       audio.play().then(() => {
         playCalled = true;
       }).catch(() => {
