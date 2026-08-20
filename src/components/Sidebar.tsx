@@ -122,9 +122,15 @@ export default function Sidebar({
       )}
 
       <div
-        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-[var(--background)] border-l border-[var(--border)] z-50 transform transition-transform duration-200 ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        } overflow-y-auto`}
+        className="fixed top-0 right-0 h-full w-80 max-w-[85vw] bg-[var(--background)] border-l border-[var(--border)] z-50 overflow-y-auto"
+        style={{
+          transform: isOpen ? "translateX(0)" : "translateX(110%)",
+          transition: isOpen
+            ? "transform 0.2s ease, visibility 0s"
+            : "transform 0.2s ease, visibility 0s 0.2s",
+          willChange: "transform",
+          visibility: isOpen ? "visible" : "hidden",
+        }}
       >
         <div className="sticky top-0 bg-[var(--background)] border-b border-[var(--border)] px-4 py-3 z-10">
           <div className="flex items-center justify-between mb-3">
