@@ -42,6 +42,8 @@ export const RECITERS: Reciter[] = [
   { id: "ar.husarymujawwad", name: "Husary (Mujawwad)", arabicName: "الحصري مجود", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.husarymujawwad", audioFormat: "global", quranComId: null },
   { id: "ar.minshawi", name: "Mohamed Siddiq El-Minshawi", arabicName: "محمد صديق المنشاوي", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.minshawi", audioFormat: "global", quranComId: null },
   { id: "ar.ahmedajamy", name: "Ahmed ibn Ali al-Ajamy", arabicName: "أحمد بن علي العجمي", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.ahmedajamy", audioFormat: "global", quranComId: null },
+  { id: "ar.saoodshuraym", name: "Saud Ash-Shuraim", arabicName: "سعود الشريم", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.saoodshuraym", audioFormat: "global", quranComId: null },
+  { id: "ar.abdullahalmatrood", name: "Abdullah Al-Matrood", arabicName: "عبد الله المطرود", audioBase: "https://cdn.islamic.network/quran/audio/128/ar.abdullahalmatrood", audioFormat: "surah", quranComId: null },
 ];
 
 export interface WordSegment {
