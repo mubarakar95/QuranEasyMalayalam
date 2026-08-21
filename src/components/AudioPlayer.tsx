@@ -40,6 +40,10 @@ interface AudioPlayerProps {
   onGoPrev?: () => void;
   canGoNext?: boolean;
   canGoPrev?: boolean;
+  playbackRate?: number;
+  onPlaybackRateChange?: (rate: number) => void;
+  repeatMode?: RepeatMode;
+  onRepeatModeChange?: (mode: RepeatMode) => void;
 }
 
 const audioHandlers = new WeakMap<HTMLAudioElement, {
@@ -79,6 +83,10 @@ export default function AudioPlayer({
   onGoPrev,
   canGoNext = true,
   canGoPrev = true,
+  playbackRate: playbackRateProp,
+  onPlaybackRateChange,
+  repeatMode: repeatModeProp,
+  onRepeatModeChange,
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
@@ -86,9 +94,26 @@ export default function AudioPlayer({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [playingMalayalam, setPlayingMalayalam] = useState(false);
-  const [repeatMode, setRepeatMode] = useState<RepeatMode>("none");
+  const [repeatModeInternal, setRepeatModeInternal] = useState<RepeatMode>("none");
   const [playLoop, setPlayLoop] = useState(0);
-  const [playbackRate, setPlaybackRate] = useState(1);
+  const [playbackRateInternal, setPlaybackRateInternal] = useState(1);
+
+  // Use controlled value from parent if provided, otherwise use internal state
+  const playbackRate = playbackRateProp ?? playbackRateInternal;
+  const repeatMode = repeatModeProp ?? repeatModeInternal;
+
+  const setPlaybackRate = (updater: number | ((prev: number) => number)) => {
+    const next = typeof updater === "function" ? updater(playbackRate) : updater;
+    setPlaybackRateInternal(next);
+    onPlaybackRateChange?.(next);
+  };
+
+  const setRepeatMode = (updater: RepeatMode | ((prev: RepeatMode) => RepeatMode)) => {
+    const next = typeof updater === "function" ? updater(repeatMode) : updater;
+    setRepeatModeInternal(next);
+    onRepeatModeChange?.(next);
+  };
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const onPageCompleteRef = useRef(onPageComplete);
   const onVerseChangeRef = useRef(onVerseChange);

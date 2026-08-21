@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import MushafPage from "@/components/MushafPage";
 import AudioPlayer from "@/components/AudioPlayer";
 import Sidebar from "@/components/Sidebar";
-import { Reciter, RECITERS, TOTAL_PAGES, HighlightWord, AudioMode } from "@/lib/types";
+import { Reciter, RECITERS, TOTAL_PAGES, HighlightWord, AudioMode, RepeatMode } from "@/lib/types";
 import { fetchPage, fetchTranslationPage } from "@/lib/quran-api";
 import { PageData as ApiPageData } from "@/lib/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -35,6 +35,9 @@ export default function Home() {
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
   const [audioVisible, setAudioVisible] = useState(true);
   const [lineHeight, setLineHeight] = useState(100);
+  const [playerPlaybackRate, setPlayerPlaybackRate] = useState(1);
+  const [playerRepeatMode, setPlayerRepeatMode] = useState<RepeatMode>("none");
+
 
   useEffect(() => {
     try {
@@ -71,6 +74,10 @@ export default function Home() {
         const found = RECITERS.find((r) => r.id === savedReciterId);
         if (found) setReciter(found);
       }
+      const savedPlaybackRate = parseFloat(localStorage.getItem("quran-playback-rate") || "1");
+      if ([1, 1.25, 1.5, 2].includes(savedPlaybackRate)) setPlayerPlaybackRate(savedPlaybackRate);
+      const savedRepeatMode = localStorage.getItem("quran-repeat-mode") as RepeatMode | null;
+      if (savedRepeatMode && ["none", "ayah", "page"].includes(savedRepeatMode)) setPlayerRepeatMode(savedRepeatMode);
     } catch {
       /* localStorage unavailable (e.g. Safari private) */
     }
@@ -159,6 +166,14 @@ export default function Home() {
   useEffect(() => {
     try { localStorage.setItem("quran-reciter", reciter.id); } catch {}
   }, [reciter]);
+
+  useEffect(() => {
+    try { localStorage.setItem("quran-playback-rate", playerPlaybackRate.toString()); } catch {}
+  }, [playerPlaybackRate]);
+
+  useEffect(() => {
+    try { localStorage.setItem("quran-repeat-mode", playerRepeatMode); } catch {}
+  }, [playerRepeatMode]);
 
   useEffect(() => {
     setCurrentAyahIndex(0);
@@ -403,11 +418,9 @@ export default function Home() {
         }}
       >
         <AudioPlayer
-          key={currentPage}
           ayahs={ayahs}
           reciter={reciter}
           onReciterChange={setReciter}
-
           onVerseChange={(key) => setHighlightVerseKey(key)}
           onWordHighlight={(word) => setHighlightWord(word)}
           audioMode={audioMode}
@@ -419,6 +432,10 @@ export default function Home() {
           onGoPrev={goPrev}
           canGoNext={twoPageMode ? currentPage + 1 < TOTAL_PAGES : currentPage < TOTAL_PAGES}
           canGoPrev={currentPage > 1}
+          playbackRate={playerPlaybackRate}
+          onPlaybackRateChange={setPlayerPlaybackRate}
+          repeatMode={playerRepeatMode}
+          onRepeatModeChange={setPlayerRepeatMode}
         />
       </div>
 
