@@ -229,8 +229,9 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
     setProgress({ current: 0, total: fontList.length, label: "Downloading fonts..." });
     for (let i = 0; i < fontList.length; i++) {
       const fontName = fontList[i];
+      const suffix = fontName === "QCF4_QBSML" ? "" : "_W";
       try {
-        const resp = await fetch(`${CDN_URL}/fonts-woff2/${fontName}_W.woff2`);
+        const resp = await fetch(`${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2`);
         if (resp.ok) {
           const buf = await resp.arrayBuffer();
           await storeFontData(fontName, buf);

@@ -13,6 +13,7 @@ interface MushafPageProps {
   showTranslation?: boolean;
   translationMap?: Map<string, string> | null;
   showWordByWord?: boolean;
+  onOpenAyahSheet?: (verseKey: string) => void;
 }
 
 function getWordGlobalIndex(words: PageLine["words"], verseKey: string, wordIndex: number): number | null {
@@ -136,7 +137,7 @@ function groupWbwWords(
   return groups;
 }
 
-export default function MushafPage({ currentPage, highlightVerseKey, highlightWord, onVerseClick, showTranslation = false, translationMap = null, showWordByWord = false }: MushafPageProps) {
+export default function MushafPage({ currentPage, highlightVerseKey, highlightWord, onVerseClick, showTranslation = false, translationMap = null, showWordByWord = false, onOpenAyahSheet }: MushafPageProps) {
   const [lines, setLines] = useState<PageLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +150,11 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
   const [ayahSheet, setAyahSheet] = useState<{ verseKey: string } | null>(null);
   const [tappedWordCodes, setTappedWordCodes] = useState<Set<number> | null>(null);
   const tappedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const openAyahSheet = useCallback((verseKey: string) => {
+    setAyahSheet({ verseKey });
+    onOpenAyahSheet?.(verseKey);
+  }, [onOpenAyahSheet]);
 
   const dismissPopover = useCallback(() => {
     setWordPopover(null);
@@ -420,7 +426,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          setAyahSheet({ verseKey: vk });
+                          openAyahSheet(vk);
                         }}
                         title={mlTooltip ? `${w.text} — ${mlTooltip}` : w.text}
                       >
@@ -477,8 +483,18 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </button>
-            <div className="ayah-sheet-header">
+            <div className="ayah-sheet-header flex items-center justify-between">
               <span className="ayah-sheet-verse-ref">{vk}</span>
+              <button
+                onClick={() => onOpenAyahSheet?.(vk)}
+                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]/20 transition-colors"
+                aria-label="Play Malayalam audio"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                </svg>
+                <span>മലയാളം Audio</span>
+              </button>
             </div>
             {translation && (
               <div className="ayah-sheet-translation" dir="ltr">{translation}</div>
@@ -538,7 +554,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                               }}
                               onContextMenu={(e) => {
                                 e.preventDefault();
-                                if (w.verse_key) setAyahSheet({ verseKey: w.verse_key });
+                                if (w.verse_key) openAyahSheet(w.verse_key);
                               }}
                               title={`${w.text} — ${group.mlText}`}
                             >
@@ -604,7 +620,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();
-                      if (w.verse_key) setAyahSheet({ verseKey: w.verse_key });
+                      if (w.verse_key) openAyahSheet(w.verse_key);
                     }}
                     title={mlText ? `${w.text} — ${mlText}` : w.text}
                   >
@@ -675,7 +691,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();
-                      if (word.verse_key) setAyahSheet({ verseKey: word.verse_key });
+                      if (word.verse_key) openAyahSheet(word.verse_key);
                     }}
                     title={mlTooltip ? `${word.text} — ${mlTooltip}` : word.text}
                   >

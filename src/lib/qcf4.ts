@@ -101,9 +101,11 @@ async function loadSingleFont(fontName: string): Promise<void> {
     }
   }
 
+  const suffix = fontName === "QCF4_QBSML" ? "" : "_W";
+
   const fontFace = new FontFace(
     fontName,
-    `url(${CDN_URL}/fonts-woff2/${fontName}_W.woff2) format('woff2'), url(${CDN_URL}/fonts/${fontName}_W.ttf) format('truetype')`,
+    `url(${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2) format('woff2'), url(${CDN_URL}/fonts/${fontName}${suffix}.ttf) format('truetype')`,
     { style: "normal", weight: "normal" }
   );
 
@@ -113,7 +115,7 @@ async function loadSingleFont(fontName: string): Promise<void> {
 
   if (db) {
     try {
-      const resp = await fetch(`${CDN_URL}/fonts-woff2/${fontName}_W.woff2`);
+      const resp = await fetch(`${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2`);
       if (resp.ok) {
         const buf = await resp.arrayBuffer();
         await db.storeFontData(fontName, buf);

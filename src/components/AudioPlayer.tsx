@@ -44,6 +44,7 @@ interface AudioPlayerProps {
   onPlaybackRateChange?: (rate: number) => void;
   repeatMode?: RepeatMode;
   onRepeatModeChange?: (mode: RepeatMode) => void;
+  playRequest?: { verseKey: string; mode?: AudioMode; timestamp: number } | null;
 }
 
 const audioHandlers = new WeakMap<HTMLAudioElement, {
@@ -51,6 +52,7 @@ const audioHandlers = new WeakMap<HTMLAudioElement, {
   handleError: () => void;
   handleTimeUpdate: () => void;
   handleLoadedMetadata: () => void;
+  handlePlay: () => void;
 }>();
 
 const SPEEDS = [1, 1.25, 1.5, 2] as const;
@@ -87,6 +89,7 @@ export default function AudioPlayer({
   onPlaybackRateChange,
   repeatMode: repeatModeProp,
   onRepeatModeChange,
+  playRequest,
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
@@ -103,7 +106,9 @@ export default function AudioPlayer({
   const repeatMode = repeatModeProp ?? repeatModeInternal;
 
   const setPlaybackRate = (updater: number | ((prev: number) => number)) => {
-    const next = typeof updater === "function" ? updater(playbackRate) : updater;
+    const currentRate = playbackRateRef.current;
+    const next = typeof updater === "function" ? updater(currentRate) : updater;
+    playbackRateRef.current = next;
     setPlaybackRateInternal(next);
     onPlaybackRateChange?.(next);
   };
@@ -213,6 +218,7 @@ export default function AudioPlayer({
       audio.removeEventListener("error", handlers.handleError);
       audio.removeEventListener("timeupdate", handlers.handleTimeUpdate);
       audio.removeEventListener("loadedmetadata", handlers.handleLoadedMetadata);
+      audio.removeEventListener("play", handlers.handlePlay);
       audioHandlers.delete(audio);
     }
   }, []);
@@ -309,6 +315,7 @@ export default function AudioPlayer({
     let playCalled = false;
     const audio = new Audio();
     audio.volume = volumeRef.current;
+    audio.defaultPlaybackRate = playbackRateRef.current;
     audio.playbackRate = playbackRateRef.current;
     audioRef.current = audio;
 
@@ -327,18 +334,26 @@ export default function AudioPlayer({
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
+      audio.defaultPlaybackRate = playbackRateRef.current;
+      audio.playbackRate = playbackRateRef.current;
       const shouldTrack = (mode === "arabic" || (mode === "both" && !playingMalayalam)) && reciter.quranComId;
       if (shouldTrack) {
         rafRef.current = requestAnimationFrame(trackWordFn);
       }
     };
 
-    audioHandlers.set(audio, { handleEnded, handleError, handleTimeUpdate, handleLoadedMetadata });
+    const handlePlay = () => {
+      audio.defaultPlaybackRate = playbackRateRef.current;
+      audio.playbackRate = playbackRateRef.current;
+    };
+
+    audioHandlers.set(audio, { handleEnded, handleError, handleTimeUpdate, handleLoadedMetadata, handlePlay });
 
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("error", handleError);
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("play", handlePlay);
 
     audioSourcePromise.then((src) => {
       if (stoppedRef.current || audioRef.current !== audio) {
@@ -348,9 +363,12 @@ export default function AudioPlayer({
       if (src.startsWith("blob:")) objectUrl = src;
       audio.src = src;
       audio.load();
+      audio.defaultPlaybackRate = playbackRateRef.current;
       audio.playbackRate = playbackRateRef.current;
       audio.play().then(() => {
         playCalled = true;
+        audio.defaultPlaybackRate = playbackRateRef.current;
+        audio.playbackRate = playbackRateRef.current;
       }).catch(() => {
         if (audioRef.current === audio) {
           setIsPlaying(false);
@@ -377,9 +395,34 @@ export default function AudioPlayer({
 
   useEffect(() => {
     if (audioRef.current) {
+      audioRef.current.defaultPlaybackRate = playbackRate;
       audioRef.current.playbackRate = playbackRate;
     }
   }, [playbackRate]);
+
+  const prevPlayRequestRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!playRequest || playRequest.timestamp === prevPlayRequestRef.current) return;
+    prevPlayRequestRef.current = playRequest.timestamp;
+
+    const targetIdx = ayahs.findIndex(
+      (a) => `${a.surah.number}:${a.numberInSurah}` === playRequest.verseKey
+    );
+    if (targetIdx !== -1) {
+      if (playRequest.mode) {
+        onAudioModeChange?.(playRequest.mode);
+      }
+      const targetMode = playRequest.mode ?? audioMode;
+      if (targetMode === "malayalam" || targetMode === "both") {
+        setPlayingMalayalam(true);
+      } else {
+        setPlayingMalayalam(false);
+      }
+      setCurrentAyahIndex(targetIdx);
+      setIsPlaying(true);
+      setPlayLoop((l) => l + 1);
+    }
+  }, [playRequest, ayahs, audioMode, onAudioModeChange]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -497,11 +540,13 @@ export default function AudioPlayer({
   }, [handleModeNavigation, handleSwitchMode, togglePlay]);
 
   const cycleSpeed = useCallback(() => {
-    setPlaybackRate((prev) => {
-      const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
-      return SPEEDS[(idx + 1) % SPEEDS.length];
-    });
-  }, []);
+    const currentRate = playbackRateRef.current;
+    const idx = SPEEDS.indexOf(currentRate as (typeof SPEEDS)[number]);
+    const nextRate = SPEEDS[(idx + 1) % SPEEDS.length];
+    playbackRateRef.current = nextRate;
+    setPlaybackRateInternal(nextRate);
+    onPlaybackRateChange?.(nextRate);
+  }, [onPlaybackRateChange]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);

@@ -37,6 +37,12 @@ export default function Home() {
   const [lineHeight, setLineHeight] = useState(100);
   const [playerPlaybackRate, setPlayerPlaybackRate] = useState(1);
   const [playerRepeatMode, setPlayerRepeatMode] = useState<RepeatMode>("none");
+  const [playMalayalamRequest, setPlayMalayalamRequest] = useState<{ verseKey: string; mode?: AudioMode; timestamp: number } | null>(null);
+
+  const handleOpenAyahSheet = useCallback((verseKey: string) => {
+    setAudioMode("malayalam");
+    setPlayMalayalamRequest({ verseKey, mode: "malayalam", timestamp: Date.now() });
+  }, []);
 
 
   useEffect(() => {
@@ -308,13 +314,16 @@ export default function Home() {
           </h1>
 
           <div className="flex items-center gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" aria-label={currentPage % 2 === 1 ? "Right page" : "Left page"}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" aria-label={currentPage % 2 === 1 ? "Right page (Page " + currentPage + ")" : "Left page (Page " + currentPage + ")"}>
+              <title>{currentPage % 2 === 1 ? `Right page (Page ${currentPage})` : `Left page (Page ${currentPage})`}</title>
               <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" fill="none" stroke="currentColor" strokeWidth={1.25} />
               <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" strokeWidth={1} strokeDasharray="2 1.5" opacity={0.5} />
               {currentPage % 2 === 1 ? (
-                <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292V6.042Z" fill="currentColor" />
-              ) : (
+                /* Odd page: Right page in RTL */
                 <path d="M12 6.042a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292V6.042Z" fill="currentColor" />
+              ) : (
+                /* Even page: Left page in RTL */
+                <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292V6.042Z" fill="currentColor" />
               )}
             </svg>
             <button
@@ -390,6 +399,7 @@ export default function Home() {
               showTranslation={showTranslation}
               translationMap={translationMap}
               showWordByWord={showWordByWord}
+              onOpenAyahSheet={handleOpenAyahSheet}
             />
           </div>
           {error && (
@@ -436,6 +446,7 @@ export default function Home() {
           onPlaybackRateChange={setPlayerPlaybackRate}
           repeatMode={playerRepeatMode}
           onRepeatModeChange={setPlayerRepeatMode}
+          playRequest={playMalayalamRequest}
         />
       </div>
 
