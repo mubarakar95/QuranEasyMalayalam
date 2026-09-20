@@ -8,30 +8,30 @@
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #111111;
-  --surface: #f5f5f5;
-  --border: #e5e5e5;
-  --muted: #737373;
-  --accent: #1a1a1a;
+  --background: #faf9f6;
+  --foreground: #18181b;
+  --surface: #f4f3ef;
+  --border: #e8e6e1;
+  --muted: #71717a;
+  --accent: #059669;
 }
 
 .creme {
-  --background: #f5efe6;
-  --foreground: #1a1a1a;
-  --surface: #ede5d8;
-  --border: #d4c9b8;
-  --muted: #737373;
-  --accent: #1a1a1a;
+  --background: #f7f2e9;
+  --foreground: #2c2419;
+  --surface: #efe7da;
+  --border: #e2d7c5;
+  --muted: #786d5e;
+  --accent: #047857;
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #f5f5f5;
-  --surface: #171717;
-  --border: #262626;
-  --muted: #a3a3a3;
-  --accent: #f5f5f5;
+  --background: #0d0f12;
+  --foreground: #f1f5f9;
+  --surface: #16191e;
+  --border: #242830;
+  --muted: #94a3b8;
+  --accent: #10b981;
 }
 
 html, body {
@@ -395,7 +395,7 @@ body {
 }
 
 .mushaf-line.wbw-active .mushaf-word {
-  font-size: calc(1rem * var(--ar-font-scale, 1));
+  font-size: calc(1.4rem * var(--ar-font-scale, 1));
 }
 
 .mushaf-word.wbw-enabled {
@@ -685,19 +685,19 @@ body {
 }
 
 .mushaf-spread .mushaf-word {
-  font-size: 1.375rem;
+  font-size: calc(1.375rem * var(--ar-font-scale, 1));
 }
 
 .mushaf-spread .mushaf-end-marker {
-  font-size: 1.1rem;
+  font-size: calc(1.1rem * var(--ar-font-scale, 1));
 }
 
 .mushaf-spread .mushaf-surah-header {
-  font-size: 1.375rem;
+  font-size: calc(1.375rem * var(--ar-font-scale, 1));
 }
 
 .mushaf-spread .mushaf-bsml {
-  font-size: 1.375rem;
+  font-size: calc(1.375rem * var(--ar-font-scale, 1));
 }
 
 .mushaf-spread .mushaf-line {
@@ -709,6 +709,10 @@ body {
   margin: 0 0.0625rem;
   background: rgba(128, 128, 128, 0.04);
   border-radius: 0.2rem;
+}
+
+.mushaf-spread .mushaf-line.wbw-active .mushaf-word {
+  font-size: calc(1.2rem * var(--ar-font-scale, 1));
 }
 
 .dark .mushaf-spread .mushaf-word.wbw-enabled {
@@ -994,15 +998,15 @@ body {
 }
 
   .mushaf-spread .mushaf-end-marker {
-    font-size: 0.85rem;
+    font-size: calc(0.85rem * var(--ar-font-scale, 1));
   }
 
   .mushaf-spread .mushaf-surah-header {
-    font-size: 1.1rem;
+    font-size: calc(1.1rem * var(--ar-font-scale, 1));
   }
 
   .mushaf-spread .mushaf-bsml {
-    font-size: 1.1rem;
+    font-size: calc(1.1rem * var(--ar-font-scale, 1));
   }
 
   .mushaf-spread .mushaf-line {
@@ -1250,7 +1254,7 @@ body {
 }
 
 .swipe-arabic {
-  font-size: 2.25rem;
+  font-size: calc(2.25rem * var(--ar-font-scale, 1));
   line-height: 1.6;
   color: var(--foreground);
   direction: rtl;
@@ -1568,7 +1572,7 @@ body {
   }
 
   .swipe-arabic {
-    font-size: 1.5rem;
+    font-size: calc(1.5rem * var(--ar-font-scale, 1));
   }
 
   .swipe-ml {

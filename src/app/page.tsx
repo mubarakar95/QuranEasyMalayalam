@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import MushafPage from "@/components/MushafPage";
 import AudioPlayer from "@/components/AudioPlayer";
 import Sidebar from "@/components/Sidebar";
 import { Reciter, RECITERS, TOTAL_PAGES, HighlightWord, AudioMode, RepeatMode } from "@/lib/types";
 import { fetchPage, fetchTranslationPage } from "@/lib/quran-api";
+import { preloadNeighborPages } from "@/lib/qcf4";
 import { PageData as ApiPageData } from "@/lib/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import QuranPage from "@/components/QuranPage";
@@ -14,6 +15,7 @@ import SwipeWBWView from "@/components/SwipeWBWView";
 export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageData, setPageData] = useState<ApiPageData | null>(null);
+  const [pageDataRight, setPageDataRight] = useState<ApiPageData | null>(null);
   const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [simpleMode, setSimpleMode] = useState(false);
@@ -90,6 +92,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    preloadNeighborPages(currentPage);
     let cancelled = false;
 
     async function load() {
@@ -113,6 +116,18 @@ export default function Home() {
           setLoading(false);
         }
       }
+
+      if (twoPageMode && currentPage + 1 <= TOTAL_PAGES) {
+        fetchPage(currentPage + 1)
+          .then((rightData) => {
+            if (!cancelled) setPageDataRight(rightData);
+          })
+          .catch(() => {
+            if (!cancelled) setPageDataRight(null);
+          });
+      } else {
+        setPageDataRight(null);
+      }
     }
 
     load();
@@ -120,7 +135,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage, retryCount]);
+  }, [currentPage, retryCount, twoPageMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,7 +293,12 @@ export default function Home() {
     }
   }, [goNext, goPrev]);
 
-  const ayahs = pageData?.ayahs || [];
+  const ayahs = useMemo(() => {
+    const leftAyahs = pageData?.ayahs || [];
+    if (!twoPageMode || !pageDataRight?.ayahs) return leftAyahs;
+    return [...leftAyahs, ...pageDataRight.ayahs];
+  }, [twoPageMode, pageData?.ayahs, pageDataRight?.ayahs]);
+
   const surahName = pageData?.ayahs[0]?.surah.englishName;
   const juzNumber = pageData?.ayahs[0]?.juz;
 
@@ -290,7 +310,7 @@ export default function Home() {
     <ErrorBoundary>
     <div className="mobile-layout">
       <header
-        className="mobile-header border-b border-[var(--border)] bg-[var(--background)] z-30"
+        className="mobile-header border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md z-30"
         style={{
           position: "sticky",
           top: 0,
@@ -298,10 +318,10 @@ export default function Home() {
           right: 0,
         }}
       >
-        <div className="max-w-3xl mx-auto px-4 h-9 grid grid-cols-[auto_1fr_auto] items-center">
+        <div className="max-w-4xl mx-auto px-4 h-10 grid grid-cols-[auto_1fr_auto] items-center">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+            className="p-1.5 rounded-lg hover:bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
             aria-label="Open menu"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -309,12 +329,12 @@ export default function Home() {
             </svg>
           </button>
 
-          <h1 className="text-sm font-semibold tracking-tight text-center">
-            Quran <span className="font-normal text-[var(--muted)]">Easy</span>
+          <h1 className="text-xs font-semibold tracking-wider uppercase text-center">
+            Quran <span className="font-normal text-[var(--muted)] lowercase">Easy Malayalam</span>
           </h1>
 
-          <div className="flex items-center gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" aria-label={currentPage % 2 === 1 ? "Right page (Page " + currentPage + ")" : "Left page (Page " + currentPage + ")"}>
+          <div className="flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4 text-[var(--muted)]" aria-label={currentPage % 2 === 1 ? "Right page (Page " + currentPage + ")" : "Left page (Page " + currentPage + ")"}>
               <title>{currentPage % 2 === 1 ? `Right page (Page ${currentPage})` : `Left page (Page ${currentPage})`}</title>
               <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" fill="none" stroke="currentColor" strokeWidth={1.25} />
               <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" strokeWidth={1} strokeDasharray="2 1.5" opacity={0.5} />
@@ -327,20 +347,21 @@ export default function Home() {
               )}
             </svg>
             <button
-              onClick={() => setTheme((t) => t === "light" ? "dark" : t === "dark" ? "creme" : "light")}
-              className="p-2 rounded-md hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+              onClick={() => setTheme((t) => t === "light" ? "creme" : t === "creme" ? "dark" : "light")}
+              className="p-1.5 rounded-lg hover:bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              title={`Theme: ${theme === "light" ? "Light" : theme === "creme" ? "Parchment" : "Dark"}`}
               aria-label="Toggle theme"
             >
             {theme === "dark" ? (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-amber-400">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
               </svg>
             ) : theme === "creme" ? (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-amber-700">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
               </svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
               </svg>
             )}
@@ -373,6 +394,8 @@ export default function Home() {
                       onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
                       showTranslation={showTranslation}
                       translationMap={translationMapRight}
+                      showWordByWord={showWordByWord}
+                      onOpenAyahSheet={handleOpenAyahSheet}
                     />
                   </div>
                   <div className="mushaf-spine-line" />
@@ -386,6 +409,8 @@ export default function Home() {
                   onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
                   showTranslation={showTranslation}
                   translationMap={translationMap}
+                  showWordByWord={showWordByWord}
+                  onOpenAyahSheet={handleOpenAyahSheet}
                 />
               </div>
             </div>

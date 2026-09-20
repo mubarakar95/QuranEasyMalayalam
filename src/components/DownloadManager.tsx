@@ -180,7 +180,14 @@ export default function DownloadManager({ isOpen, onClose }: DownloadManagerProp
 
   const downloadAllPages = useCallback(async () => {
     const CDN_URL = "https://cdn.jsdelivr.net/gh/MohamadHajjRabee/quran-qcf4@main";
-    setDownloading(true);
+    setProgress({ current: 0, total: TOTAL_PAGES, label: "Downloading static data..." });
+    await Promise.allSettled([
+      fetch("/malayalam-wbw.json"),
+      fetch("/verse-page-map.json"),
+      fetch("/mushtabihat.json"),
+      fetch("/quran-text.json"),
+      fetch("/vocabulary.json"),
+    ]);
 
     setProgress({ current: 0, total: TOTAL_PAGES, label: "Downloading pages..." });
     const fontsNeeded = new Set<string>();

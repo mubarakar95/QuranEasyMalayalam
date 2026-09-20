@@ -1,3 +1,6 @@
+import { TOTAL_PAGES } from "./types";
+import { fetchPage, fetchTranslationPage } from "./quran-api";
+
 export interface PageLine {
   line: number;
   words: PageWord[];
@@ -93,34 +96,44 @@ async function loadSingleFont(fontName: string): Promise<void> {
   if (db) {
     const cached = await db.getFontData(fontName);
     if (cached) {
-      const fontFace = new FontFace(fontName, cached);
-      await fontFace.load();
-      document.fonts.add(fontFace);
-      fontCache.add(fontName);
-      return;
+      try {
+        const fontFace = new FontFace(fontName, cached);
+        await fontFace.load();
+        document.fonts.add(fontFace);
+        fontCache.add(fontName);
+        return;
+      } catch {
+        /* fallback to network */
+      }
     }
   }
 
   const suffix = fontName === "QCF4_QBSML" ? "" : "_W";
 
-  const fontFace = new FontFace(
-    fontName,
-    `url(${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2) format('woff2'), url(${CDN_URL}/fonts/${fontName}${suffix}.ttf) format('truetype')`,
-    { style: "normal", weight: "normal" }
-  );
+  try {
+    const fontFace = new FontFace(
+      fontName,
+      `url(${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2) format('woff2'), url(${CDN_URL}/fonts/${fontName}${suffix}.ttf) format('truetype')`,
+      { style: "normal", weight: "normal" }
+    );
 
-  await withTimeout(fontFace.load(), 20000, `Font load ${fontName}`);
-  document.fonts.add(fontFace);
-  fontCache.add(fontName);
+    await withTimeout(fontFace.load(), 8000, `Font load ${fontName}`);
+    document.fonts.add(fontFace);
+    fontCache.add(fontName);
 
-  if (db) {
-    try {
-      const resp = await fetch(`${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2`);
-      if (resp.ok) {
-        const buf = await resp.arrayBuffer();
-        await db.storeFontData(fontName, buf);
-      }
-    } catch { /* ignore */ }
+    if (db) {
+      fetch(`${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2`)
+        .then(async (resp) => {
+          if (resp.ok) {
+            const buf = await resp.arrayBuffer();
+            await db.storeFontData(fontName, buf);
+          }
+        })
+        .catch(() => {});
+    }
+  } catch (err) {
+    console.warn(`Font load for ${fontName} failed or timed out:`, err);
+    fontCache.add(fontName);
   }
 }
 
@@ -132,6 +145,32 @@ export async function loadPageFont(fontName: string): Promise<string> {
   }
 
   return fontName;
+}
+
+export function preloadNeighborPages(currentPage: number): void {
+  const pagesToLoad: number[] = [];
+  for (let delta = -2; delta <= 5; delta++) {
+    if (delta === 0) continue;
+    const p = currentPage + delta;
+    if (p >= 1 && p <= TOTAL_PAGES) {
+      pagesToLoad.push(p);
+    }
+  }
+
+  pagesToLoad.forEach((p) => {
+    fetchPageData(p)
+      .then((data) => {
+        if (data.font) loadPageFont(data.font).catch(() => {});
+        for (const line of data.lines || []) {
+          for (const word of line.words || []) {
+            if (word.font) loadPageFont(word.font).catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
+    fetchPage(p).catch(() => {});
+    fetchTranslationPage(p).catch(() => {});
+  });
 }
 
 export interface SurahInfo2 {
