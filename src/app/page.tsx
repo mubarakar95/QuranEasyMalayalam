@@ -11,6 +11,8 @@ import { PageData as ApiPageData } from "@/lib/types";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import QuranPage from "@/components/QuranPage";
 import SwipeWBWView from "@/components/SwipeWBWView";
+import PageFlipBook from "@/components/PageFlipBook";
+import GeminiToast from "@/components/GeminiToast";
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,6 +33,10 @@ export default function Home() {
   const [translationMapRight, setTranslationMapRight] = useState<Map<string, string> | null>(null);
   const [audioMode, setAudioMode] = useState<AudioMode>("arabic");
   const [twoPageMode, setTwoPageMode] = useState(false);
+  const [isMobileScreen, setIsMobileScreen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  });
   const [mlFontSize, setMlFontSize] = useState(100);
   const [arFontSize, setArFontSize] = useState(100);
   const [showSwipeWBW, setShowSwipeWBW] = useState(false);
@@ -40,18 +46,37 @@ export default function Home() {
   const [playerPlaybackRate, setPlayerPlaybackRate] = useState(1);
   const [playerRepeatMode, setPlayerRepeatMode] = useState<RepeatMode>("none");
   const [playMalayalamRequest, setPlayMalayalamRequest] = useState<{ verseKey: string; mode?: AudioMode; timestamp: number } | null>(null);
+  const [activeAyahSheetKey, setActiveAyahSheetKey] = useState<string | null>(null);
+
+  // Two-page spread is strictly disabled on mobile devices / screens (< 768px)
+  const effectiveTwoPageMode = twoPageMode && !isMobileScreen;
 
   const handleOpenAyahSheet = useCallback((verseKey: string) => {
-    setAudioMode("malayalam");
-    setPlayMalayalamRequest({ verseKey, mode: "malayalam", timestamp: Date.now() });
+    setActiveAyahSheetKey(verseKey);
   }, []);
 
+  const handlePlayAyah = useCallback((verseKey: string, mode: AudioMode) => {
+    setAudioMode(mode);
+    setPlayMalayalamRequest({ verseKey, mode, timestamp: Date.now() });
+    setActiveAyahSheetKey(verseKey);
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileScreen(window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     try {
-      if (window.location.search.includes("simple=1")) setSimpleMode(true);
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlPage = parseInt(searchParams.get("page") || "");
       const savedPage = parseInt(localStorage.getItem("quran-page") || "1");
-      if (savedPage >= 1 && savedPage <= TOTAL_PAGES) setCurrentPage(savedPage);
+      const targetPage = (!isNaN(urlPage) && urlPage >= 1 && urlPage <= TOTAL_PAGES) ? urlPage : savedPage;
+      if (targetPage >= 1 && targetPage <= TOTAL_PAGES) setCurrentPage(targetPage);
       const savedTheme = localStorage.getItem("quran-theme") as "light" | "creme" | "dark" | null;
       if (savedTheme && ["light", "creme", "dark"].includes(savedTheme)) {
         setTheme(savedTheme);
@@ -69,7 +94,7 @@ export default function Home() {
       const savedTwoPage = localStorage.getItem("quran-two-page-mode");
       if (savedTwoPage === "true") {
         setTwoPageMode(true);
-        if (savedPage % 2 === 0) setCurrentPage(savedPage - 1);
+        if (savedPage % 2 === 0 && window.innerWidth >= 768) setCurrentPage(savedPage - 1);
       }
       const savedMlSize = parseInt(localStorage.getItem("quran-ml-font-size") || "100");
       if (savedMlSize >= 60 && savedMlSize <= 200) setMlFontSize(savedMlSize);
@@ -104,7 +129,9 @@ export default function Home() {
           setPageData(data);
           setLoading(false);
           try { localStorage.setItem("quran-page", currentPage.toString()); } catch {}
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          if (simpleMode) {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -117,7 +144,7 @@ export default function Home() {
         }
       }
 
-      if (twoPageMode && currentPage + 1 <= TOTAL_PAGES) {
+      if (effectiveTwoPageMode && currentPage + 1 <= TOTAL_PAGES) {
         fetchPage(currentPage + 1)
           .then((rightData) => {
             if (!cancelled) setPageDataRight(rightData);
@@ -135,7 +162,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage, retryCount, twoPageMode]);
+  }, [currentPage, retryCount, effectiveTwoPageMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,7 +175,7 @@ export default function Home() {
         if (!cancelled) setTranslationMap(null);
       });
 
-    if (twoPageMode && currentPage + 1 <= TOTAL_PAGES) {
+    if (effectiveTwoPageMode && currentPage + 1 <= TOTAL_PAGES) {
       fetchTranslationPage(currentPage + 1)
         .then((map) => {
           if (!cancelled) setTranslationMapRight(map);
@@ -159,7 +186,7 @@ export default function Home() {
     }
 
     return () => { cancelled = true; };
-  }, [currentPage, showTranslation, showSwipeWBW, twoPageMode]);
+  }, [currentPage, effectiveTwoPageMode]);
 
   useEffect(() => {
     document.documentElement.classList.remove("dark", "creme");
@@ -205,7 +232,6 @@ export default function Home() {
     setShowTranslation((prev) => {
       const next = !prev;
       try { localStorage.setItem("quran-show-translation", next.toString()); } catch {}
-      if (!next) setTranslationMap(null);
       return next;
     });
   }, []);
@@ -231,6 +257,7 @@ export default function Home() {
   }, [showSwipeWBW]);
 
   const toggleTwoPageMode = useCallback(() => {
+    if (isMobileScreen) return;
     setTwoPageMode((prev) => {
       const next = !prev;
       try { localStorage.setItem("quran-two-page-mode", next.toString()); } catch {}
@@ -239,27 +266,33 @@ export default function Home() {
       }
       return next;
     });
-  }, []);
+  }, [isMobileScreen]);
 
   const goToPage = useCallback((page: number) => {
     if (page >= 1 && page <= TOTAL_PAGES) {
-      setCurrentPage(twoPageMode ? (page % 2 === 0 ? page - 1 : page) : page);
+      setHighlightVerseKey(null);
+      setHighlightWord(null);
+      setCurrentPage(effectiveTwoPageMode ? (page % 2 === 0 ? page - 1 : page) : page);
     }
-  }, [twoPageMode]);
+  }, [effectiveTwoPageMode]);
 
   const goNext = useCallback(() => {
+    setHighlightVerseKey(null);
+    setHighlightWord(null);
     setCurrentPage((prev) => {
-      const step = twoPageMode ? 2 : 1;
+      const step = effectiveTwoPageMode ? 2 : 1;
       return prev + step <= TOTAL_PAGES ? prev + step : prev;
     });
-  }, [twoPageMode]);
+  }, [effectiveTwoPageMode]);
 
   const goPrev = useCallback(() => {
+    setHighlightVerseKey(null);
+    setHighlightWord(null);
     setCurrentPage((prev) => {
-      const step = twoPageMode ? 2 : 1;
+      const step = effectiveTwoPageMode ? 2 : 1;
       return prev - step >= 1 ? prev - step : prev;
     });
-  }, [twoPageMode]);
+  }, [effectiveTwoPageMode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -285,26 +318,75 @@ export default function Home() {
   }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (effectiveTwoPageMode) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      // In RTL (Arabic Mushaf), swiping right turns the page forward (increases page)
       if (dx > 0) goNext();
       else goPrev();
     }
-  }, [goNext, goPrev]);
+  }, [effectiveTwoPageMode, goNext, goPrev]);
+
+  const handleVerseChange = useCallback((key: string | null) => {
+    setHighlightVerseKey(key);
+    if (key) {
+      setActiveAyahSheetKey((prev) => (prev !== null ? key : null));
+    }
+  }, []);
 
   const ayahs = useMemo(() => {
     const leftAyahs = pageData?.ayahs || [];
-    if (!twoPageMode || !pageDataRight?.ayahs) return leftAyahs;
+    if (!effectiveTwoPageMode || !pageDataRight?.ayahs) return leftAyahs;
     return [...leftAyahs, ...pageDataRight.ayahs];
-  }, [twoPageMode, pageData?.ayahs, pageDataRight?.ayahs]);
+  }, [effectiveTwoPageMode, pageData?.ayahs, pageDataRight?.ayahs]);
 
   const surahName = pageData?.ayahs[0]?.surah.englishName;
   const juzNumber = pageData?.ayahs[0]?.juz;
 
-  const pageLabel = twoPageMode && currentPage + 1 <= TOTAL_PAGES
+  const pageLabel = effectiveTwoPageMode && currentPage + 1 <= TOTAL_PAGES
     ? `${currentPage}–${currentPage + 1}`
     : `${currentPage}`;
+
+  const handleVerseClick = useCallback((key: string) => {
+    setHighlightVerseKey((prev) => (prev === key ? null : key));
+  }, []);
+
+  const renderMushafPage = useCallback(
+    (pageNum: number, isSingle: boolean = !effectiveTwoPageMode) => (
+      <MushafPage
+        key={`${pageNum}-${isSingle ? "single" : "double"}`}
+        currentPage={pageNum}
+        isSinglePage={isSingle}
+        highlightVerseKey={highlightVerseKey}
+        highlightWord={highlightWord}
+        onVerseClick={handleVerseClick}
+        showTranslation={showTranslation}
+        translationMap={pageNum === currentPage ? translationMap : translationMapRight}
+        showWordByWord={showWordByWord}
+        onOpenAyahSheet={handleOpenAyahSheet}
+        onPlayAyah={handlePlayAyah}
+        activeAyahSheetKey={activeAyahSheetKey}
+        onAyahSheetChange={setActiveAyahSheetKey}
+      />
+    ),
+    [
+      effectiveTwoPageMode,
+      highlightVerseKey,
+      highlightWord,
+      handleVerseClick,
+      showTranslation,
+      currentPage,
+      translationMap,
+      translationMapRight,
+      showWordByWord,
+      handleOpenAyahSheet,
+      handlePlayAyah,
+      activeAyahSheetKey,
+    ]
+  );
+
+  const isMushafMode = !showSwipeWBW && !simpleMode && (!showTranslation || showWordByWord);
 
   return (
     <ErrorBoundary>
@@ -370,8 +452,12 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mobile-content" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        <div style={{ display: simpleMode ? "none" : "block" }}>
+      <main
+        className={`mobile-content ${isMushafMode ? "mushaf-mode" : ""}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="w-full h-full flex-1 flex flex-col justify-center items-center min-h-0" style={{ display: simpleMode ? "none" : "flex" }}>
           <div style={{ display: showSwipeWBW ? "block" : "none" }}>
             <SwipeWBWView
               ayahs={ayahs}
@@ -382,51 +468,22 @@ export default function Home() {
               translationMap={translationMap}
             />
           </div>
-          <div style={{ display: twoPageMode && !showSwipeWBW ? "block" : "none" }} className="mushaf-spread">
-            <div className="mushaf-spread-pages">
-              {currentPage + 1 <= TOTAL_PAGES && (
-                <>
-                  <div className="mushaf-spread-page">
-                    <MushafPage
-                      currentPage={currentPage + 1}
-                      highlightVerseKey={highlightVerseKey}
-                      highlightWord={highlightWord}
-                      onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-                      showTranslation={showTranslation}
-                      translationMap={translationMapRight}
-                      showWordByWord={showWordByWord}
-                      onOpenAyahSheet={handleOpenAyahSheet}
-                    />
-                  </div>
-                  <div className="mushaf-spine-line" />
-                </>
-              )}
-              <div className="mushaf-spread-page">
-                <MushafPage
-                  currentPage={currentPage}
-                  highlightVerseKey={highlightVerseKey}
-                  highlightWord={highlightWord}
-                  onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-                  showTranslation={showTranslation}
-                  translationMap={translationMap}
-                  showWordByWord={showWordByWord}
-                  onOpenAyahSheet={handleOpenAyahSheet}
-                />
+          {!showSwipeWBW && (
+            effectiveTwoPageMode ? (
+              <PageFlipBook
+                currentPage={currentPage}
+                twoPageMode={true}
+                onPageChange={goToPage}
+                renderPage={(p) => renderMushafPage(p, false)}
+              />
+            ) : (
+              <div className="quran-single-page-wrapper">
+                <div className="quran-single-page-container">
+                  {renderMushafPage(currentPage, true)}
+                </div>
               </div>
-            </div>
-          </div>
-          <div style={{ display: !twoPageMode && !showSwipeWBW ? "block" : "none" }}>
-            <MushafPage
-              currentPage={currentPage}
-              highlightVerseKey={highlightVerseKey}
-              highlightWord={highlightWord}
-              onVerseClick={(key) => setHighlightVerseKey(key === highlightVerseKey ? null : key)}
-              showTranslation={showTranslation}
-              translationMap={translationMap}
-              showWordByWord={showWordByWord}
-              onOpenAyahSheet={handleOpenAyahSheet}
-            />
-          </div>
+            )
+          )}
           {error && (
             <div className="max-w-3xl mx-auto px-4 py-4">
               <div className="border border-[var(--border)] rounded-lg p-4 text-center">
@@ -456,16 +513,18 @@ export default function Home() {
           ayahs={ayahs}
           reciter={reciter}
           onReciterChange={setReciter}
-          onVerseChange={(key) => setHighlightVerseKey(key)}
+          onVerseChange={handleVerseChange}
           onWordHighlight={(word) => setHighlightWord(word)}
           audioMode={audioMode}
           onAudioModeChange={setAudioMode}
           highlightVerseKey={highlightVerseKey}
           compact={true}
           pageLabel={pageLabel}
+          currentPage={currentPage}
           onGoNext={goNext}
           onGoPrev={goPrev}
-          canGoNext={twoPageMode ? currentPage + 1 < TOTAL_PAGES : currentPage < TOTAL_PAGES}
+          onPageComplete={goNext}
+          canGoNext={effectiveTwoPageMode ? currentPage + 1 < TOTAL_PAGES : currentPage < TOTAL_PAGES}
           canGoPrev={currentPage > 1}
           playbackRate={playerPlaybackRate}
           onPlaybackRateChange={setPlayerPlaybackRate}
@@ -481,7 +540,7 @@ export default function Home() {
       >
         <button
           onClick={goNext}
-          disabled={twoPageMode ? currentPage + 1 >= TOTAL_PAGES : currentPage >= TOTAL_PAGES}
+          disabled={effectiveTwoPageMode ? currentPage + 1 >= TOTAL_PAGES : currentPage >= TOTAL_PAGES}
           className="bottom-nav-btn"
           aria-label="Next page"
         >
@@ -518,7 +577,8 @@ export default function Home() {
       onToggleTranslation={toggleTranslation}
       audioVisible={audioVisible}
       onToggleAudioVisible={() => setAudioVisible((v) => !v)}
-      twoPageMode={twoPageMode}
+      twoPageMode={effectiveTwoPageMode}
+      disableTwoPageMode={isMobileScreen}
       onToggleTwoPageMode={toggleTwoPageMode}
       mlFontSize={mlFontSize}
       onMlFontSizeChange={setMlFontSize}
@@ -533,6 +593,7 @@ export default function Home() {
       theme={theme}
       onThemeChange={setTheme}
     />
+    <GeminiToast />
     </ErrorBoundary>
   );
 }

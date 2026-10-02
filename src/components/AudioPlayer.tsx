@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Reciter, AyahInfo, HighlightWord, AudioMode, RepeatMode } from "@/lib/types";
 import { getAudioUrl, getMalayalamAyahAudioUrl } from "@/lib/quran-api";
-import { fetchChapterSegments, findWordAtTime } from "@/lib/audio-segments";
+import { fetchChapterSegments, findWordAtTime, findWordsAtTime } from "@/lib/audio-segments";
+import { fetchMalayalamSegments, fetchMalayalamPageSegments, clearSegmentCache, SegmentResult } from "@/lib/ml-audio-segments";
+import { fetchPageAlignments } from "@/lib/ar-ml-alignments";
 
 let dbModule: typeof import("@/lib/db") | null = null;
 async function getDb() {
@@ -36,6 +38,7 @@ interface AudioPlayerProps {
   highlightVerseKey?: string | null;
   compact?: boolean;
   pageLabel?: string;
+  currentPage?: number;
   onGoNext?: () => void;
   onGoPrev?: () => void;
   canGoNext?: boolean;
@@ -46,6 +49,7 @@ interface AudioPlayerProps {
   onRepeatModeChange?: (mode: RepeatMode) => void;
   playRequest?: { verseKey: string; mode?: AudioMode; timestamp: number } | null;
 }
+
 
 const audioHandlers = new WeakMap<HTMLAudioElement, {
   handleEnded: () => void;
@@ -81,6 +85,7 @@ export default function AudioPlayer({
   highlightVerseKey,
   compact = false,
   pageLabel,
+  currentPage,
   onGoNext,
   onGoPrev,
   canGoNext = true,
@@ -91,6 +96,7 @@ export default function AudioPlayer({
   onRepeatModeChange,
   playRequest,
 }: AudioPlayerProps) {
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -127,8 +133,25 @@ export default function AudioPlayer({
   const volumeRef = useRef(volume);
   const playbackRateRef = useRef(playbackRate);
   const segmentsRef = useRef<Awaited<ReturnType<typeof fetchChapterSegments>>>([]);
+  const mlSegmentsRef = useRef<import("@/lib/types").AyahSegments | null>(null);
+
+  // Single status state for all ML segment feedback
+  type MLStatus =
+    | { state: "idle" }
+    | { state: "loading" }
+    | { state: "ready"; source?: "cache" | "gemini" }
+    | { state: "error"; code?: "no_key" | "rate_limit" | "overloaded" | "auth" | "not_found" | "error"; message?: string };
+  const [mlStatus, setMlStatus] = useState<MLStatus>({ state: "idle" });
+  const [alignStatus, setAlignStatus] = useState<MLStatus>({ state: "idle" });
+
+  // Track which ayah the status is for so retry knows what to clear
+  const mlAyahRef = useRef<{ surah: number; ayah: number } | null>(null);
+
+
+
   const rafRef = useRef<number>(0);
   const currentWordIndexRef = useRef<number | null>(null);
+  const currentWordKeyRef = useRef<string | null>(null);
   const isPlayingRef = useRef(isPlaying);
   const currentAyahIndexRef = useRef(currentAyahIndex);
   const ayahsRef = useRef(ayahs);
@@ -153,12 +176,15 @@ export default function AudioPlayer({
   useEffect(() => { onWordHighlightRef.current = onWordHighlight; }, [onWordHighlight]);
 
   useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
     if (ayahs.length === 0) return;
     const ayah = ayahs[currentAyahIndex];
     if (ayah) {
       onVerseChangeRef.current?.(`${ayah.surah.number}:${ayah.numberInSurah}`);
     }
-  }, [currentAyahIndex, ayahs]);
+  }, [currentAyahIndex, ayahs, isPlaying]);
 
   useEffect(() => {
     const shouldFetchSegments = audioMode === "arabic" || audioMode === "both";
@@ -187,28 +213,66 @@ export default function AudioPlayer({
     return () => { cancelled = true; };
   }, [reciter.quranComId, ayahs, audioMode]);
 
+  // Pre-load Malayalam word segments for the full page in one shot
+  useEffect(() => {
+    if (!currentPage) return;
+    const shouldFetch = audioMode === "malayalam" || audioMode === "both";
+    if (shouldFetch) {
+      fetchMalayalamPageSegments(currentPage);
+    }
+  }, [currentPage, audioMode]);
+
+
   const trackWordFn = () => {
     const audio = audioRef.current;
     if (!audio || audio.paused) return;
 
     const ayah = ayahsRef.current[currentAyahIndexRef.current];
     if (!ayah) return;
-    const shouldTrack = audioModeRef.current === "arabic" || (audioModeRef.current === "both" && !playingMalayalamRef.current);
-    if (!shouldTrack || !reciterRef.current.quranComId) return;
 
+    const mode = audioModeRef.current;
+    const isMl = playingMalayalamRef.current || mode === "malayalam";
     const verseKey = `${ayah.surah.number}:${ayah.numberInSurah}`;
     const currentTimeMs = audio.currentTime * 1000;
-    const wordIndex = findWordAtTime(segmentsRef.current, verseKey, currentTimeMs);
 
-    if (wordIndex !== currentWordIndexRef.current) {
+    let wordIndex: number | null = null;
+    let wordIndices: number[] | undefined = undefined;
+
+    if (isMl) {
+      // Use Malayalam-specific segments from Gemini/Supabase
+      const mlSeg = mlSegmentsRef.current;
+      if (mlSeg) {
+        const words = findWordsAtTime([mlSeg], verseKey, currentTimeMs);
+        if (words.length > 0) {
+          wordIndex = words[0];
+          wordIndices = words;
+        }
+      }
+    } else if (reciterRef.current.quranComId) {
+      // Use Arabic reciter segments (existing behaviour)
+      wordIndex = findWordAtTime(segmentsRef.current, verseKey, currentTimeMs);
+    }
+
+    const highlightKey = isMl
+      ? (wordIndices && wordIndices.length > 0 ? wordIndices.slice().sort((a, b) => a - b).join(",") : null)
+      : (wordIndex !== null ? String(wordIndex) : null);
+
+    if (highlightKey !== currentWordKeyRef.current) {
+      currentWordKeyRef.current = highlightKey;
       currentWordIndexRef.current = wordIndex;
       if (wordIndex !== null) {
-        onWordHighlightRef.current?.({ verseKey, wordIndex });
+        onWordHighlightRef.current?.({ verseKey, wordIndex, wordIndices, bundle: isMl });
+      } else {
+        // Clear highlight when between words
+        onWordHighlightRef.current?.(null);
       }
     }
 
+    cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(trackWordFn);
   };
+
+
 
   const cleanupAudio = useCallback((audio: HTMLAudioElement) => {
     audio.pause();
@@ -228,6 +292,7 @@ export default function AudioPlayer({
     cancelAnimationFrame(rafRef.current);
     onWordHighlightRef.current?.(null);
     currentWordIndexRef.current = null;
+    currentWordKeyRef.current = null;
 
     const mode = audioModeRef.current;
     const repeat = repeatModeRef.current;
@@ -311,6 +376,53 @@ export default function AudioPlayer({
       ? Promise.resolve(url)
       : getAudioSource(url, reciter.id, ayah.surah.number, ayah.numberInSurah);
 
+    // Prefetch ML word-timing segments in the background when playing Malayalam
+    const isPlayingMalayalam =
+      mode === "malayalam" || (mode === "both" && playingMalayalam);
+    if (isPlayingMalayalam) {
+      mlSegmentsRef.current = null; // reset for new ayah
+      mlAyahRef.current = { surah: ayah.surah.number, ayah: ayah.numberInSurah };
+      setMlStatus({ state: "loading" });
+      fetchMalayalamSegments(ayah.surah.number, ayah.numberInSurah, currentPage).then(
+        (result) => {
+          if (stoppedRef.current) return;
+          if (result.ok) {
+            mlSegmentsRef.current = result.data;
+            setMlStatus({ state: "ready", source: result.source });
+            // Immediately evaluate word highlight for currently playing position
+            trackWordFn();
+          } else {
+            setMlStatus({ state: "error", code: result.code, message: result.message });
+          }
+        }
+      );
+    } else {
+      setMlStatus({ state: "idle" });
+    }
+
+    // When playing Arabic, prefetch full-page Arabic-Malayalam alignments in the background
+    // with 1 single Gemini batch so the translation sheet can highlight in real-time
+    const isPlayingArabic = mode === "arabic" || (mode === "both" && !playingMalayalam);
+    if (isPlayingArabic && currentPage) {
+      setAlignStatus({ state: "loading" });
+      fetchPageAlignments(currentPage, true)
+        .then((res) => {
+          if (stoppedRef.current) return;
+          if (res && Object.keys(res).length > 0) {
+            setAlignStatus({ state: "ready", source: "cache" });
+          } else {
+            setAlignStatus({ state: "idle" });
+          }
+        })
+        .catch(() => {
+          if (!stoppedRef.current) {
+            setAlignStatus({ state: "idle" });
+          }
+        });
+    } else {
+      setAlignStatus({ state: "idle" });
+    }
+
     let objectUrl: string | null = null;
     let playCalled = false;
     const audio = new Audio();
@@ -330,14 +442,20 @@ export default function AudioPlayer({
 
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
+      trackWordFn();
     };
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration);
       audio.defaultPlaybackRate = playbackRateRef.current;
       audio.playbackRate = playbackRateRef.current;
-      const shouldTrack = (mode === "arabic" || (mode === "both" && !playingMalayalam)) && reciter.quranComId;
-      if (shouldTrack) {
+      const shouldTrackArabic =
+        (mode === "arabic" || (mode === "both" && !playingMalayalam)) &&
+        reciter.quranComId;
+      const shouldTrackMalayalam =
+        mode === "malayalam" || (mode === "both" && playingMalayalam);
+      if (shouldTrackArabic || shouldTrackMalayalam) {
+        cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(trackWordFn);
       }
     };
@@ -345,6 +463,15 @@ export default function AudioPlayer({
     const handlePlay = () => {
       audio.defaultPlaybackRate = playbackRateRef.current;
       audio.playbackRate = playbackRateRef.current;
+      const shouldTrackArabic =
+        (mode === "arabic" || (mode === "both" && !playingMalayalam)) &&
+        reciter.quranComId;
+      const shouldTrackMalayalam =
+        mode === "malayalam" || (mode === "both" && playingMalayalam);
+      if (shouldTrackArabic || shouldTrackMalayalam) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(trackWordFn);
+      }
     };
 
     audioHandlers.set(audio, { handleEnded, handleError, handleTimeUpdate, handleLoadedMetadata, handlePlay });
@@ -369,6 +496,15 @@ export default function AudioPlayer({
         playCalled = true;
         audio.defaultPlaybackRate = playbackRateRef.current;
         audio.playbackRate = playbackRateRef.current;
+        const shouldTrackArabic =
+          (mode === "arabic" || (mode === "both" && !playingMalayalam)) &&
+          reciter.quranComId;
+        const shouldTrackMalayalam =
+          mode === "malayalam" || (mode === "both" && playingMalayalam);
+        if (shouldTrackArabic || shouldTrackMalayalam) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = requestAnimationFrame(trackWordFn);
+        }
       }).catch(() => {
         if (audioRef.current === audio) {
           setIsPlaying(false);
@@ -474,6 +610,7 @@ export default function AudioPlayer({
     setPlayingMalayalam(false);
     setPlayLoop(0);
     currentWordIndexRef.current = null;
+    currentWordKeyRef.current = null;
     onWordHighlightRef.current?.(null);
   }, [cleanupAudio]);
 
@@ -583,6 +720,40 @@ export default function AudioPlayer({
         <span className="text-[10px] tabular-nums text-[var(--muted)] min-w-[2.5rem]">{formatTime(duration)}</span>
       </div>
 
+      {/* ── ML error message strip — always visible when something goes wrong ── */}
+      {mlStatus.state === "error" && (audioMode === "malayalam" || audioMode === "both") && (
+        <div className="flex items-center gap-2 px-1 py-1 mt-0.5 rounded bg-red-50 border border-red-200 text-red-600" style={{ fontSize: "10px" }}>
+          <span className="shrink-0">
+            {mlStatus.code === "rate_limit" ? "⏳" :
+             mlStatus.code === "overloaded" ? "⚠️" :
+             mlStatus.code === "no_key" || mlStatus.code === "auth" ? "🔑" : "✗"}
+          </span>
+          <span className="flex-1 leading-tight">{mlStatus.message}</span>
+          {mlStatus.code !== "no_key" && (
+            <button
+              onClick={() => {
+                const ayah = ayahsRef.current[currentAyahIndexRef.current];
+                if (!ayah) return;
+                clearSegmentCache(ayah.surah.number, ayah.numberInSurah, currentPage);
+                setMlStatus({ state: "loading" });
+                fetchMalayalamSegments(ayah.surah.number, ayah.numberInSurah, currentPage).then((result) => {
+                  if (result.ok) {
+                    mlSegmentsRef.current = result.data;
+                    setMlStatus({ state: "ready", source: result.source });
+                    trackWordFn();
+                  } else {
+                    setMlStatus({ state: "error", code: result.code, message: result.message });
+                  }
+                });
+              }}
+              className="shrink-0 px-2 py-0.5 rounded border border-red-300 hover:bg-red-100 transition-colors font-medium text-[11px]"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between" style={compact ? { marginTop: '0.125rem' } : { marginTop: '0.375rem' }}>
         <div className="flex items-center gap-1">
           <button
@@ -598,6 +769,7 @@ export default function AudioPlayer({
               }
               cancelAnimationFrame(rafRef.current);
               currentWordIndexRef.current = null;
+              currentWordKeyRef.current = null;
               onWordHighlightRef.current?.(null);
               if (isPlaying) {
                 setCurrentTime(0);
@@ -609,6 +781,39 @@ export default function AudioPlayer({
           >
             {shortModeLabel(audioMode)}
           </button>
+
+
+          {/* ── Arabic translation alignment status indicator ───────────────────────── */}
+          {audioMode === "arabic" && alignStatus.state !== "idle" && (
+            <>
+              {alignStatus.state === "loading" && (
+                <span className="flex items-center gap-1 shrink-0" title="Aligning translation for Arabic playback…">
+                  <span className="w-2.5 h-2.5 border border-amber-400 border-t-transparent rounded-full animate-spin" />
+                </span>
+              )}
+              {alignStatus.state === "ready" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Translation alignments ready" />
+              )}
+            </>
+          )}
+
+          {/* ── ML word-highlight status indicator ───────────────────────── */}
+          {(audioMode === "malayalam" || audioMode === "both") && mlStatus.state !== "idle" && (
+            <>
+              {mlStatus.state === "loading" && (
+                <span className="flex items-center gap-1 shrink-0" title="Analysing audio for word timing…">
+                  <span className="w-2.5 h-2.5 border border-amber-400 border-t-transparent rounded-full animate-spin" />
+                </span>
+              )}
+              {mlStatus.state === "ready" && mlStatus.source === "cache" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Word timing loaded from cache" />
+              )}
+              {mlStatus.state === "ready" && mlStatus.source === "gemini" && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Word timing generated by Gemini ✨" />
+              )}
+            </>
+          )}
+
 
           <button onClick={() => skipAyah(-1)} disabled={currentAyahIndex === 0} className="player-btn" aria-label="Previous ayah">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">

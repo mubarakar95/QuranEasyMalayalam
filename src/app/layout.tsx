@@ -34,6 +34,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://api.alquran.cloud" />
         <link rel="preconnect" href="https://cdn.islamic.network" />
         <link rel="preconnect" href="https://api.quran.com" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-screen flex flex-col overflow-x-hidden overflow-y-hidden bg-[var(--background)] text-[var(--foreground)]">
         <ServiceWorkerRegistration />

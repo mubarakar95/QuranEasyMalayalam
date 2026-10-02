@@ -11,14 +11,14 @@ export async function GET(
   const padded = page.padStart(3, "0");
 
   const urls = [
-    `${CDN_URL}/pages/${padded}.json`,
     `${RAW_BASE}/pages/${padded}.json`,
+    `${CDN_URL}/pages/${padded}.json`,
   ];
 
   for (const url of urls) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
       if (res.ok) {

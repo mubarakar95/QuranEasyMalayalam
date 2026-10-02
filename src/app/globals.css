@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --color-background: var(--background);
@@ -357,7 +358,7 @@ body {
 }
 
 .quran-page-container > * {
-  animation: fade-in 0.2s ease-out;
+  /* No fade animation to avoid text flicker on page turns */
 }
 
 .mushaf-container {
@@ -366,7 +367,8 @@ body {
   padding: 1.5rem 1rem;
   direction: rtl;
   text-align: center;
-  animation: fade-in 0.2s ease-out;
+  animation: none !important;
+  transition: none !important;
 }
 
 .mushaf-line {
@@ -388,10 +390,17 @@ body {
   font-size: calc(1.75rem * var(--ar-font-scale, 1));
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition: none;
   border-radius: 0.125rem;
   padding: 0 0.0625rem;
   white-space: nowrap;
+}
+
+.mushaf-word:hover,
+.mushaf-word.highlighted,
+.mushaf-word.word-highlighted,
+.mushaf-word.word-tapped {
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .mushaf-line.wbw-active .mushaf-word {
@@ -516,22 +525,24 @@ body {
   justify-content: center;
   font-size: 1.25rem;
   font-weight: 700;
-  -webkit-text-stroke: 0.5px currentColor;
   vertical-align: baseline;
-  color: #047857;
-  opacity: 0.9;
-  padding: 0.1em 0.15em;
+  color: #15803d;
+  opacity: 0.95;
+  padding: 0.08em 0.12em;
   cursor: pointer;
   transition: opacity 0.15s, background-color 0.15s, box-shadow 0.15s;
   direction: ltr;
-  background: radial-gradient(circle, rgba(4, 120, 87, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(21, 128, 61, 0.12) 0%, rgba(197, 155, 39, 0.1) 60%, transparent 80%);
   border-radius: 50%;
   line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(197, 155, 39, 0.3);
 }
 
 .mushaf-end-marker:hover {
   opacity: 1;
-  background: radial-gradient(circle, rgba(4, 120, 87, 0.25) 0%, transparent 70%);
+  color: #166534;
+  background: radial-gradient(circle, rgba(21, 128, 61, 0.22) 0%, rgba(197, 155, 39, 0.2) 60%, transparent 80%);
+  box-shadow: inset 0 0 0 1px rgba(197, 155, 39, 0.6);
 }
 
 .dark .mushaf-end-marker {
@@ -540,6 +551,7 @@ body {
   font-weight: 700;
   -webkit-text-stroke: 0.5px currentColor;
   background: radial-gradient(circle, rgba(250, 204, 21, 0.15) 0%, transparent 70%);
+  box-shadow: none;
 }
 
 .dark .mushaf-end-marker:hover {
@@ -549,21 +561,450 @@ body {
 
 .mushaf-end-marker.highlighted {
   opacity: 1;
-  color: #3b82f6;
+  color: #2563eb;
   -webkit-text-stroke: 0;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
-  -webkit-background-clip: unset;
-  background-clip: unset;
-  box-shadow: 0 0 6px rgba(59, 130, 246, 0.2);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.2) 0%, transparent 70%);
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.3), inset 0 0 0 1px rgba(37, 99, 235, 0.5);
 }
 
 .dark .mushaf-end-marker.highlighted {
   color: #60a5fa;
   -webkit-text-stroke: 0;
   background: radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%);
-  -webkit-background-clip: unset;
-  background-clip: unset;
   box-shadow: 0 0 6px rgba(96, 165, 250, 0.2);
+}
+
+/* ===================================================
+   MADANI MUSHAF AUTHENTIC READING EXPERIENCE
+   =================================================== */
+
+.madani-mushaf-page-container {
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+}
+
+.madani-page-wrapper {
+  container-type: inline-size;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Turn page slot contains full size madani page */
+.turn-page-slot .madani-mushaf-page-container {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+/* Header and Footer bars */
+.madani-header-bar {
+  font-family: "Amiri Quran", "Amiri", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  font-size: clamp(0.72rem, 2.5cqw, 1.15rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #111827;
+  width: 100%;
+  padding: 0;
+}
+
+.dark .madani-header-bar {
+  color: #f1f5f9;
+}
+
+.creme .madani-header-bar {
+  color: #231f18;
+}
+
+.madani-footer-bar {
+  font-family: "Amiri Quran", "Amiri", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  font-size: clamp(0.85rem, 2.8cqw, 1.3rem);
+  font-weight: 700;
+  color: #111827;
+  width: 100%;
+  padding: 0;
+  text-align: center;
+}
+
+.dark .madani-footer-bar {
+  color: #f1f5f9;
+}
+
+.creme .madani-footer-bar {
+  color: #231f18;
+}
+
+.madani-page-number {
+  font-family: "Amiri Quran", "Amiri", "Noto Naskh Arabic", "Traditional Arabic", serif;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+/* Authentic Page Sheet */
+.madani-page-sheet {
+  aspect-ratio: 652 / 1024;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  container-type: inline-size;
+  background: #FFFDF9;
+  border-radius: 3px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.dark .madani-page-sheet {
+  background: #0f141c;
+}
+
+.creme .madani-page-sheet {
+  background: #FBF7EE;
+}
+
+/* Ornate Frame Area bounded by authentic white paper margins (Madani Mushaf) */
+.madani-sheet-frame-area {
+  position: absolute;
+  left: 11.8%;
+  right: 11.6%;
+  top: 12.6%;
+  bottom: 12.8%;
+}
+
+/* In single page mode, frame expands with only a small border */
+.is-single-page .madani-sheet-frame-area {
+  left: 1.5% !important;
+  right: 1.5% !important;
+  top: 4.2% !important;
+  bottom: 4.2% !important;
+}
+
+.is-single-page .madani-sheet-header {
+  left: 1.5% !important;
+  right: 1.5% !important;
+  top: 0.8% !important;
+  height: 3.2% !important;
+}
+
+.is-single-page .madani-sheet-footer {
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0.8% !important;
+  height: 3.2% !important;
+}
+
+/* The frame SVG overlay */
+.madani-frame-border {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.madani-frame-border img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+}
+
+/* The inner text slot with authentic Madani padding inside the border frame */
+.madani-slot-area {
+  position: absolute;
+  top: 5.2%;
+  bottom: 5.2%;
+  left: 9.5%;
+  right: 9.5%;
+  z-index: 5;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.madani-slot-area .mushaf-container {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  direction: rtl !important;
+  box-sizing: border-box;
+  animation: none !important;
+  transition: none !important;
+}
+
+/* The 15 lines of the page */
+.madani-slot-area .mushaf-line {
+  width: 100% !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  direction: rtl !important;
+  line-height: 1 !important;
+}
+
+.madani-slot-area .mushaf-line.mushaf-line-centered {
+  justify-content: center !important;
+  gap: 1.2cqw !important;
+}
+
+.madani-slot-area .mushaf-line.mushaf-line-surah-header {
+  justify-content: center !important;
+  align-items: center !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+/* Words */
+.madani-slot-area .mushaf-word {
+  font-size: calc(3.68cqw * var(--ar-font-scale, 1)) !important;
+  font-weight: 500 !important;
+  color: #111827;
+  white-space: nowrap;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  cursor: pointer;
+  transition: none;
+}
+
+.madani-slot-area .mushaf-word:hover,
+.madani-slot-area .mushaf-word.highlighted,
+.madani-slot-area .mushaf-word.word-highlighted,
+.madani-slot-area .mushaf-word.word-tapped {
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.dark .madani-slot-area .mushaf-word {
+  color: #f1f5f9;
+}
+
+/* Word highlight */
+.madani-slot-area .mushaf-word.highlighted {
+  background: rgba(197, 155, 39, 0.14) !important;
+  color: #1b4d2e !important;
+  border-radius: 0 !important;
+}
+
+.madani-slot-area .mushaf-word.word-highlighted {
+  background: rgba(197, 155, 39, 0.28) !important;
+  color: #14532d !important;
+  border-radius: 0.2rem;
+  box-shadow: 0 0 0 1px rgba(197, 155, 39, 0.4);
+}
+
+.dark .madani-slot-area .mushaf-word.highlighted {
+  background: rgba(234, 179, 8, 0.18) !important;
+  color: #fef08a !important;
+  border-radius: 0 !important;
+}
+
+.dark .madani-slot-area .mushaf-word.word-highlighted {
+  background: rgba(234, 179, 8, 0.32) !important;
+  color: #fef08a !important;
+  border-radius: 0.2rem;
+  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.4);
+}
+
+/* ── Malayalam transcription live audio highlight — Soft Blue ─────────────── */
+.mushaf-word.word-highlighted-ml,
+.madani-slot-area .mushaf-word.word-highlighted-ml,
+.madani-page-wrapper .madani-slot-area .mushaf-word.word-highlighted-ml {
+  background: rgba(59, 130, 246, 0.16) !important;
+  color: #0f172a !important;
+  border-radius: 0.25rem !important;
+  box-shadow: 0 0 0 1.5px rgba(37, 99, 235, 0.4) !important;
+}
+
+.dark .mushaf-word.word-highlighted-ml,
+.dark .madani-slot-area .mushaf-word.word-highlighted-ml,
+.dark .madani-page-wrapper .madani-slot-area .mushaf-word.word-highlighted-ml {
+  background: rgba(59, 130, 246, 0.22) !important;
+  color: #f8fafc !important;
+  border-radius: 0.25rem !important;
+  box-shadow: 0 0 0 1.5px rgba(96, 165, 250, 0.45) !important;
+}
+
+.creme .mushaf-word.word-highlighted-ml,
+.creme .madani-slot-area .mushaf-word.word-highlighted-ml,
+.creme .madani-page-wrapper .madani-slot-area .mushaf-word.word-highlighted-ml {
+  background: rgba(37, 99, 235, 0.13) !important;
+  color: #1e293b !important;
+  border-radius: 0.25rem !important;
+  box-shadow: 0 0 0 1.5px rgba(37, 99, 235, 0.35) !important;
+}
+
+.wbw-group.wbw-group-ml-highlighted {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-color: rgba(37, 99, 235, 0.4) !important;
+  box-shadow: 0 0 0 1.5px rgba(37, 99, 235, 0.3) !important;
+  border-radius: 0.375rem !important;
+}
+
+.wbw-group.wbw-group-ml-highlighted .wbw-ml {
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
+  background: rgba(59, 130, 246, 0.16) !important;
+  border-radius: 0.25rem !important;
+  padding: 0.1rem 0.35rem !important;
+}
+
+.dark .wbw-group.wbw-group-ml-highlighted {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border-color: rgba(96, 165, 250, 0.5) !important;
+  box-shadow: 0 0 0 1.5px rgba(96, 165, 250, 0.4) !important;
+  border-radius: 0.375rem !important;
+}
+
+.dark .wbw-group.wbw-group-ml-highlighted .wbw-ml {
+  color: #bfdbfe !important;
+  font-weight: 700 !important;
+  background: rgba(59, 130, 246, 0.28) !important;
+  border-radius: 0.25rem !important;
+  padding: 0.1rem 0.35rem !important;
+}
+
+
+/* Special Page (Page 1 & Page 2) — centered layout */
+.madani-slot-area .mushaf-container.special-page {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+  width: 100% !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  direction: rtl !important;
+}
+
+.madani-slot-area .mushaf-container.special-page .mushaf-line {
+  display: flex !important;
+  flex-direction: row !important;
+  direction: rtl !important;
+  justify-content: center !important;
+  align-items: baseline !important;
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  padding: 0.12em 0 !important;
+}
+
+.madani-slot-area .mushaf-container.special-page .mushaf-line.mushaf-line-centered {
+  justify-content: center !important;
+}
+
+.madani-slot-area .mushaf-container.special-page .mushaf-word {
+  font-size: calc(4.8cqw * var(--ar-font-scale, 1)) !important;
+}
+
+/* Give the Bismillah line on special pages generous breathing room */
+.madani-slot-area .mushaf-container.special-page .mushaf-line:has(.mushaf-bsml) {
+  padding: 0.6em 0 !important;
+}
+
+/* Match Bismillah size to the rest of the text on special pages */
+.madani-slot-area .mushaf-container.special-page .mushaf-bsml {
+  font-size: calc(4.8cqw * var(--ar-font-scale, 1)) !important;
+}
+
+/* Surah Header & Bismillah banners */
+.madani-surah-header-container {
+  width: calc(100% + 5.2%);
+  margin-left: -2.6%;
+  margin-right: -2.6%;
+  aspect-ratio: 872.674 / 100;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.madani-surah-title-glyph {
+  font-size: calc(4.2cqw * var(--ar-font-scale, 1));
+  color: #111827;
+  line-height: 1;
+  display: inline-block;
+  white-space: nowrap;
+  transform: translateY(-15%);
+}
+
+.dark .madani-surah-title-glyph {
+  color: #facc15;
+}
+
+.madani-slot-area .mushaf-surah-header {
+  font-size: calc(4.4cqw * var(--ar-font-scale, 1)) !important;
+  color: #111827;
+  line-height: 1;
+  display: inline-block;
+  transform: translateY(-15%);
+}
+
+.dark .madani-slot-area .mushaf-surah-header {
+  color: #facc15;
+}
+
+.madani-slot-area .mushaf-bsml {
+  font-size: calc(3.68cqw * var(--ar-font-scale, 1)) !important;
+  color: #111827;
+  line-height: 1;
+  display: inline-block;
+  transform: translateY(35%) !important;
+}
+
+.dark .madani-slot-area .mushaf-bsml {
+  color: #facc15;
+}
+
+/* Ayah Marker (Medallion) - optically centered between preceding and following words */
+.madani-ayah-marker {
+  height: max(1.35em, calc(4.6cqw * var(--ar-font-scale, 1)));
+  width: max(1.02em, calc(4.6cqw * 0.7536 * var(--ar-font-scale, 1)));
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  cursor: pointer;
+  margin-right: -0.1cqw;
+  margin-left: 0.45cqw;
+}
+
+.madani-slot-area .mushaf-line > :last-child.madani-ayah-marker {
+  margin-left: 0 !important;
+}
+
+.madani-slot-area .mushaf-line > :first-child.madani-ayah-marker {
+  margin-right: 0 !important;
+}
+
+.madani-ayah-marker.highlighted {
+  filter: drop-shadow(0 0 5px rgba(217, 119, 6, 0.75));
+}
+
+.dark .madani-ayah-marker.highlighted {
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.75));
+}
+
+.mushaf-spread .mushaf-spread-page {
+  padding: 0.25rem !important;
 }
 
 .mushaf-surah-header {
@@ -590,7 +1031,7 @@ body {
   max-width: 1100px;
   margin: 0.5rem auto;
   position: relative;
-  animation: fade-in 0.2s ease-out;
+  animation: none !important;
 }
 
 .mushaf-spread::before {
@@ -776,24 +1217,36 @@ body {
 
 .word-popover {
   position: fixed;
-  bottom: 8rem;
+  top: calc(2.85rem + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 50;
+  z-index: 100000;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.5rem;
   background: var(--background);
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  border-radius: 9999px;
+  padding: 0.4rem 0.85rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   direction: ltr;
-  max-width: 80vw;
-  pointer-events: none;
-  animation: fade-in 0.15s ease-out;
-  font-size: 1.4rem;
+  max-width: 90vw;
+  pointer-events: auto;
+  animation: popoverSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popoverSlideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
 }
 
 .word-popover-verse {
@@ -803,11 +1256,16 @@ body {
 }
 
 .word-popover-ml {
-  font-size: var(--ml-font-size, 1.1rem);
+  font-size: var(--ml-font-size, 1.05rem);
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--foreground);
   text-align: center;
   line-height: 1.4;
+  font-weight: 500;
+  max-width: 70vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .word-popover-speak {
@@ -815,16 +1273,39 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0.15rem;
+  padding: 0.2rem;
   color: var(--muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.2rem;
+  border-radius: 9999px;
   flex-shrink: 0;
+  transition: color 0.15s, background-color 0.15s;
 }
 .word-popover-speak:hover {
   color: var(--foreground);
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.word-popover-close {
+  pointer-events: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+}
+.word-popover-close:hover {
+  opacity: 1;
+  color: var(--foreground);
+  background: rgba(128, 128, 128, 0.15);
 }
 
 .mushaf-spread-ornament {
@@ -851,9 +1332,33 @@ body {
 
 .mobile-layout .mobile-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mobile-layout .mobile-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.mobile-layout .mobile-content.mushaf-mode {
+  overflow: hidden;
+}
+
+.mobile-layout .mobile-content > div:first-child {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
 }
 
 .mobile-layout .mobile-player {
@@ -954,45 +1459,6 @@ body {
     max-width: 100%;
   }
 
-  .mushaf-spread-pages {
-    flex-direction: column;
-    border-radius: 2px;
-  }
-
-  .mushaf-spine-line {
-    width: 100%;
-    height: 0;
-    border-left: none;
-    border-top: 1px solid #bbb;
-    align-self: auto;
-    flex-shrink: 0;
-    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.04);
-  }
-
-  .dark .mushaf-spine-line {
-    border-top-color: #555;
-  }
-
-  .mushaf-spread-page {
-    padding: 0.75rem 0.5rem 1rem;
-  }
-
-  .mushaf-spread-page:first-child {
-    box-shadow: none;
-  }
-
-  .dark .mushaf-spread-page:first-child {
-    box-shadow: none;
-  }
-
-  .mushaf-spread-page:last-child {
-    box-shadow: none;
-  }
-
-  .dark .mushaf-spread-page:last-child {
-    box-shadow: none;
-  }
-
 .mushaf-spread .mushaf-word {
   font-size: calc(1.1rem * var(--ar-font-scale, 1));
 }
@@ -1060,7 +1526,8 @@ body {
   }
 
   .word-popover {
-    bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    top: calc(2.65rem + env(safe-area-inset-top, 0px));
+    max-width: 94vw;
   }
 }
 
@@ -1592,8 +2059,10 @@ body {
 .ayah-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
-  background: rgba(0, 0, 0, 0.3);
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1606,14 +2075,28 @@ body {
   max-height: 80vh;
   overflow-y: auto;
   border-radius: 1rem 1rem 0 0;
-  padding: 1rem 1.25rem 2rem;
+  padding: 1rem 1.25rem;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom, 2rem));
   position: relative;
+  z-index: 100000;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
   animation: slideUp 0.25s ease-out;
 }
 
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
+}
+
+@keyframes geminiToastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .ayah-sheet-handle {
@@ -1677,6 +2160,39 @@ body {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.ayah-sheet-word-row.ayah-sheet-row-active {
+  background: rgba(59, 130, 246, 0.14) !important;
+  box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.4) !important;
+}
+
+.ayah-sheet-word-row.ayah-sheet-row-active .ayah-sheet-ml {
+  color: #1d4ed8 !important;
+  font-weight: 700;
+}
+
+.ayah-sheet-word-row.ayah-sheet-row-active .ayah-sheet-arabic {
+  color: #1e40af !important;
+  font-weight: bold;
+}
+
+.dark .ayah-sheet-word-row.ayah-sheet-row-active {
+  background: rgba(59, 130, 246, 0.25) !important;
+  box-shadow: 0 0 0 1.5px rgba(96, 165, 250, 0.5) !important;
+}
+
+.dark .ayah-sheet-word-row.ayah-sheet-row-active .ayah-sheet-ml {
+  color: #93c5fd !important;
+  font-weight: 700;
+}
+
+.dark .ayah-sheet-word-row.ayah-sheet-row-active .ayah-sheet-arabic {
+  color: #bfdbfe !important;
+  font-weight: bold;
 }
 
 .ayah-sheet-ml {
@@ -1710,4 +2226,650 @@ body {
 
 .perspective-1000 {
   perspective: 1000px;
+}
+
+/* ===================================================
+   3D REALISTIC MUSHAF PAGE TURNING ANIMATION
+   =================================================== */
+
+.flipbook-stage-single,
+.flipbook-stage-spread {
+  perspective: 2400px;
+  perspective-origin: 50% 50%;
+  transform-style: preserve-3d;
+  user-select: none;
+  overflow: visible;
+}
+
+.flipbook-single-viewport {
+  position: relative;
+  transform-style: preserve-3d;
+  width: 100%;
+  max-width: min(100%, calc((100vh - 140px) * 0.64419), 620px);
+  margin: 0 auto;
+}
+
+.flipbook-under-page {
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+/* The 3D rotating leaf in single page mode */
+.flipbook-leaf-single {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  z-index: 25;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* Turn Next in single page (peels from left towards right spine) */
+.leaf-single-next {
+  transform-origin: right center;
+  animation: flipSingleNext 520ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes flipSingleNext {
+  0% {
+    transform: rotateY(0deg) translateZ(0);
+    opacity: 1;
+  }
+  25% {
+    transform: rotateY(24deg) translateZ(28px) skewY(-0.6deg);
+    opacity: 1;
+  }
+  50% {
+    transform: rotateY(56deg) translateZ(36px) skewY(-1deg) scale(0.98);
+    opacity: 1;
+  }
+  75% {
+    transform: rotateY(84deg) translateZ(24px) skewY(-0.8deg) scaleX(0.9);
+    opacity: 0.95;
+  }
+  90% {
+    transform: rotateY(96deg) translateZ(12px) skewY(-0.4deg) scaleX(0.82);
+    opacity: 0.8;
+  }
+  100% {
+    transform: rotateY(108deg) translateZ(0) skewY(0deg) scaleX(0.75);
+    opacity: 0;
+  }
+}
+
+/* Turn Prev in single page (peels from right towards left spine) */
+.leaf-single-prev {
+  transform-origin: left center;
+  animation: flipSinglePrev 520ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes flipSinglePrev {
+  0% {
+    transform: rotateY(0deg) translateZ(0);
+    opacity: 1;
+  }
+  25% {
+    transform: rotateY(-24deg) translateZ(28px) skewY(0.6deg);
+    opacity: 1;
+  }
+  50% {
+    transform: rotateY(-56deg) translateZ(36px) skewY(1deg) scale(0.98);
+    opacity: 1;
+  }
+  75% {
+    transform: rotateY(-84deg) translateZ(24px) skewY(0.8deg) scaleX(0.9);
+    opacity: 0.95;
+  }
+  90% {
+    transform: rotateY(-96deg) translateZ(12px) skewY(0.4deg) scaleX(0.82);
+    opacity: 0.8;
+  }
+  100% {
+    transform: rotateY(-108deg) translateZ(0) skewY(0deg) scaleX(0.75);
+    opacity: 0;
+  }
+}
+
+/* Two-page spread leaf */
+.flipbook-leaf-spread {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  transform-style: preserve-3d;
+  z-index: 35;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* In Arabic Mushaf: turning forward turns left page to the right */
+.leaf-flip-next {
+  left: 0;
+  transform-origin: right center;
+  animation: flipSpreadNext 520ms cubic-bezier(0.35, 0, 0.25, 1) forwards;
+}
+
+@keyframes flipSpreadNext {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
+/* In Arabic Mushaf: turning backward turns right page to the left */
+.leaf-flip-prev {
+  left: 50%;
+  transform-origin: left center;
+  animation: flipSpreadPrev 520ms cubic-bezier(0.35, 0, 0.25, 1) forwards;
+}
+
+@keyframes flipSpreadPrev {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(-180deg);
+  }
+}
+
+/* Front and back surfaces of the flipping sheet */
+.flipbook-leaf-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.flipbook-leaf-front {
+  transform: rotateY(0deg);
+  z-index: 2;
+}
+
+.flipbook-leaf-back {
+  transform: rotateY(180deg);
+  z-index: 1;
+}
+
+.flipbook-reverse-paper {
+  position: absolute;
+  inset: 0;
+  background: #FFFDF9;
+  border-radius: 3px;
+  border: 1px solid rgba(197, 155, 39, 0.25);
+  box-shadow: inset 0 0 35px rgba(197, 155, 39, 0.1);
+}
+
+.dark .flipbook-reverse-paper {
+  background: #0f141c;
+  border-color: rgba(234, 179, 8, 0.25);
+  box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.45);
+}
+
+/* Dynamic Paper Lighting: Specular Sheen across page curve */
+.flipbook-lighting-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0) 25%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0) 75%,
+    transparent 100%
+  );
+  animation: leafHighlight 520ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+.dark .flipbook-lighting-highlight {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0) 25%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0) 75%,
+    transparent 100%
+  );
+}
+
+@keyframes leafHighlight {
+  0% {
+    opacity: 0;
+    transform: translateX(-30%);
+  }
+  40% {
+    opacity: 0.9;
+    transform: translateX(10%);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(50%);
+  }
+}
+
+/* Dynamic Shadow along the bend / spine */
+.flipbook-lighting-shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 49;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.22) 0%,
+    transparent 20%,
+    transparent 80%,
+    rgba(0, 0, 0, 0.22) 100%
+  );
+  animation: leafShadow 520ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+.dark .flipbook-lighting-shadow {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    transparent 20%,
+    transparent 80%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+}
+
+@keyframes leafShadow {
+  0% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Dynamic cast shadow on the page underneath */
+.flipbook-cast-shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+}
+
+.cast-single-next {
+  transform-origin: right center;
+  background: radial-gradient(
+    ellipse at right center,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.12) 40%,
+    transparent 75%
+  );
+  animation: castShadowNext 520ms cubic-bezier(0.28, 0.1, 0.25, 1) forwards;
+}
+
+.cast-single-prev {
+  transform-origin: left center;
+  background: radial-gradient(
+    ellipse at left center,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.12) 40%,
+    transparent 75%
+  );
+  animation: castShadowPrev 520ms cubic-bezier(0.28, 0.1, 0.25, 1) forwards;
+}
+
+.cast-right {
+  left: 50%;
+  width: 50%;
+  transform-origin: left center;
+  background: radial-gradient(
+    ellipse at left center,
+    rgba(0, 0, 0, 0.32) 0%,
+    rgba(0, 0, 0, 0.12) 40%,
+    transparent 75%
+  );
+  animation: castShadowNext 520ms cubic-bezier(0.35, 0, 0.25, 1) forwards;
+}
+
+.cast-left {
+  left: 0;
+  width: 50%;
+  transform-origin: right center;
+  background: radial-gradient(
+    ellipse at right center,
+    rgba(0, 0, 0, 0.32) 0%,
+    rgba(0, 0, 0, 0.12) 40%,
+    transparent 75%
+  );
+  animation: castShadowPrev 520ms cubic-bezier(0.35, 0, 0.25, 1) forwards;
+}
+
+@keyframes castShadowNext {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+  35% {
+    opacity: 0.65;
+    transform: scaleX(0.75);
+  }
+  70% {
+    opacity: 0.45;
+    transform: scaleX(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes castShadowPrev {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2);
+  }
+  35% {
+    opacity: 0.65;
+    transform: scaleX(0.75);
+  }
+  70% {
+    opacity: 0.45;
+    transform: scaleX(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+/* ==========================================================================
+   Single Page View (Zero-turn animation, compact small border)
+   ========================================================================== */
+
+.quran-single-page-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+}
+
+.quran-single-page-container {
+  aspect-ratio: 652 / 1024;
+  width: min(calc(100vw - 12px), calc((100vh - 110px) * 652 / 1024));
+  width: min(calc(100vw - 12px), calc((100dvh - 110px) * 652 / 1024));
+  height: min(calc(100vh - 110px), calc((100vw - 12px) * 1024 / 652));
+  height: min(calc(100dvh - 110px), calc((100vw - 12px) * 1024 / 652));
+  max-width: calc(100vw - 12px);
+  max-height: calc(100vh - 110px);
+  max-height: calc(100dvh - 110px);
+  position: relative;
+  background-color: #FFFDF9;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.dark .quran-single-page-container {
+  background-color: #0f141c;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.creme .quran-single-page-container {
+  background-color: #FBF7EE;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+}
+
+.quran-single-page-container .madani-mushaf-page-container {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+}
+
+/* Single page mode scaled typography for the wider ornate frame */
+.madani-page-wrapper.is-single-page .madani-slot-area .mushaf-word {
+  font-size: calc(4.4cqw * var(--ar-font-scale, 1)) !important;
+}
+
+.madani-page-wrapper.is-single-page .madani-slot-area .mushaf-container.special-page .mushaf-word {
+  font-size: calc(5.8cqw * var(--ar-font-scale, 1)) !important;
+}
+
+.madani-page-wrapper.is-single-page .madani-surah-header-container {
+  width: calc(100% + 5.4%);
+  margin-left: -2.7%;
+  margin-right: -2.7%;
+}
+
+.madani-page-wrapper.is-single-page .madani-surah-title-glyph {
+  font-size: calc(5.2cqw * var(--ar-font-scale, 1));
+  transform: translateY(-15%) !important;
+}
+
+.madani-page-wrapper.is-single-page .madani-slot-area .mushaf-surah-header {
+  font-size: calc(5.4cqw * var(--ar-font-scale, 1)) !important;
+  transform: translateY(-15%) !important;
+}
+
+.madani-page-wrapper.is-single-page .madani-slot-area .mushaf-bsml {
+  font-size: calc(4.35cqw * var(--ar-font-scale, 1)) !important;
+  transform: translateY(35%) !important;
+}
+
+.madani-page-wrapper.is-single-page .madani-ayah-marker {
+  height: max(1.4em, calc(5.0cqw * var(--ar-font-scale, 1)));
+  width: max(1.05em, calc(5.0cqw * 0.7536 * var(--ar-font-scale, 1)));
+  margin-right: -0.12cqw;
+  margin-left: 0.52cqw;
+}
+
+.madani-page-wrapper.is-single-page .madani-slot-area .mushaf-line.mushaf-line-centered {
+  gap: 1.5cqw !important;
+}
+
+.madani-page-wrapper.is-single-page .madani-header-bar {
+  font-size: clamp(0.72rem, 3.1cqw, 1.25rem);
+}
+
+.madani-page-wrapper.is-single-page .madani-footer-bar {
+  font-size: clamp(0.85rem, 3.4cqw, 1.35rem);
+}
+
+/* ==========================================================================
+   Turn.js Flipbook Engine Styles (Dual Page Spread)
+   ========================================================================== */
+
+.quran-flipbook-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: calc(100dvh - 110px);
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  margin: 0 auto;
+  touch-action: none;
+}
+
+#quran-flipbook {
+  position: relative;
+  margin: 0;
+  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.22), 0 4px 12px -2px rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+  touch-action: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.turn-page-slot,
+.p-temporal,
+.page.p-temporal,
+#quran-flipbook .p-temporal {
+  background-color: #FFFDF9 !important;
+  color: #111827;
+  overflow: hidden;
+  box-sizing: border-box;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-backface-visibility: hidden !important;
+  backface-visibility: hidden !important;
+}
+
+#quran-flipbook .page-wrapper,
+.page-wrapper {
+  background: transparent !important;
+}
+
+/* Authentic parchment styling for the reverse side of single-page turn */
+.p-temporal,
+.page.p-temporal,
+#quran-flipbook .p-temporal {
+  background: #FFFDF9 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23c59b27' fill-opacity='0.03' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E") !important;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(197, 155, 39, 0.2) !important;
+}
+
+/* Optimization while dragging / flipping: disable hover repaints and cursor flicker */
+.is-page-flipping .turn-page-slot {
+  pointer-events: none !important;
+}
+
+.dark .turn-page-slot,
+.dark .p-temporal,
+.dark .page.p-temporal,
+.dark #quran-flipbook .p-temporal {
+  background-color: #0f141c !important;
+  color: #f1f5f9;
+}
+
+.dark .p-temporal,
+.dark .page.p-temporal,
+.dark #quran-flipbook .p-temporal {
+  background: #0f141c !important;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(197, 155, 39, 0.15) !important;
+}
+
+.creme .turn-page-slot,
+.creme .p-temporal,
+.creme .page.p-temporal,
+.creme #quran-flipbook .p-temporal {
+  background-color: #FBF7EE !important;
+  color: #231f18;
+}
+
+.creme .p-temporal,
+.creme .page.p-temporal,
+.creme #quran-flipbook .p-temporal {
+  background: #FBF7EE !important;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(197, 155, 39, 0.2) !important;
+}
+
+/* Spine valley depth shadow in two-page spread */
+.flipbook-stage-spread .quran-page-right::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 32px;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.05) 55%, transparent 100%);
+  pointer-events: none;
+  z-index: 30;
+}
+
+.flipbook-stage-spread .quran-page-left::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 32px;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.05) 55%, transparent 100%);
+  pointer-events: none;
+  z-index: 30;
+}
+
+.dark .flipbook-stage-spread .quran-page-right::after {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.18) 55%, transparent 100%);
+}
+
+.dark .flipbook-stage-spread .quran-page-left::after {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.18) 55%, transparent 100%);
+}
+
+.turn-hard-cover {
+  background: linear-gradient(135deg, #133a1e 0%, #0d2614 100%) !important;
+  color: #dfba53 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid #7c6218 !important;
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.turn-cover-ornament {
+  border: 3px double #dfba53;
+  padding: 2.5rem 1.5rem;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.turn-cover-title-ar {
+  font-size: 2rem;
+  font-weight: bold;
+  font-family: serif;
+  line-height: 1.4;
+  color: #dfba53;
+}
+
+.turn-cover-title-en {
+  font-size: 1rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #f3df9b;
+}
+
+.turn-cover-sub {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  color: #d6cdb5;
 }

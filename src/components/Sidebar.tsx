@@ -18,6 +18,7 @@ interface SidebarProps {
   audioVisible: boolean;
   onToggleAudioVisible: () => void;
   twoPageMode: boolean;
+  disableTwoPageMode?: boolean;
   onToggleTwoPageMode: () => void;
   mlFontSize: number;
   onMlFontSizeChange: (fn: (prev: number) => number) => void;
@@ -74,6 +75,7 @@ export default function Sidebar({
   audioVisible,
   onToggleAudioVisible,
   twoPageMode,
+  disableTwoPageMode = false,
   onToggleTwoPageMode,
   mlFontSize,
   onMlFontSizeChange,
@@ -95,6 +97,33 @@ export default function Sidebar({
   const [pageInput, setPageInput] = useState(currentPage.toString());
   const fetchedRef = useRef(false);
   const [showDownloads, setShowDownloads] = useState(false);
+
+  // Gemini API key — stored per-browser in localStorage
+  const [geminiKey, setGeminiKey] = useState("");
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [geminiKeySaved, setGeminiKeySaved] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("gemini-api-key") || "";
+    setGeminiKey(stored);
+    setGeminiKeyInput(stored);
+  }, []);
+
+  const saveGeminiKey = () => {
+    const trimmed = geminiKeyInput.trim();
+    localStorage.setItem("gemini-api-key", trimmed);
+    setGeminiKey(trimmed);
+    setGeminiKeySaved(true);
+    setTimeout(() => setGeminiKeySaved(false), 2000);
+  };
+
+  const clearGeminiKey = () => {
+    localStorage.removeItem("gemini-api-key");
+    setGeminiKey("");
+    setGeminiKeyInput("");
+  };
+
 
   useEffect(() => {
     if (isOpen && !fetchedRef.current) {
@@ -406,15 +435,22 @@ export default function Sidebar({
 
               <button
                 onClick={onToggleTwoPageMode}
-                className="sidebar-toggle-btn"
+                disabled={disableTwoPageMode}
+                className={`sidebar-toggle-btn ${disableTwoPageMode ? "opacity-40 cursor-not-allowed" : ""}`}
+                title={disableTwoPageMode ? "Two Page Mode is not available on mobile devices" : undefined}
               >
                 <span className="sidebar-toggle-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
                   </svg>
                 </span>
-                <span>Two Page Mode</span>
-                <span className={`sidebar-toggle-indicator ${twoPageMode ? "active" : ""}`}>
+                <span className="flex-1 flex flex-col items-start leading-tight">
+                  <span>Two Page Mode</span>
+                  {disableTwoPageMode && (
+                    <span className="text-[10px] text-[var(--muted)] font-normal">Desktop only</span>
+                  )}
+                </span>
+                <span className={`sidebar-toggle-indicator ${twoPageMode && !disableTwoPageMode ? "active" : ""}`}>
                   <span className="sidebar-toggle-dot" />
                 </span>
               </button>
@@ -517,8 +553,82 @@ export default function Sidebar({
                   </button>
                 </div>
               </div>
+              <div className="px-3 py-3 border-t border-[var(--border)] mt-1">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs text-[var(--muted)]">Gemini API Key</span>
+                  {geminiKey ? (
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-500 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                      Saved
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-500">Not set</span>
+                  )}
+                </div>
+                <p className="text-[10px] text-[var(--muted)] mb-2 leading-relaxed">
+                  Required for live Arabic word highlighting during Malayalam audio. Your key is stored only in this browser and never shared.
+                </p>
+                <div className="flex gap-1.5 mb-1.5">
+                  <div className="relative flex-1">
+                    <input
+                      type={showGeminiKey ? "text" : "password"}
+                      value={geminiKeyInput}
+                      onChange={(e) => setGeminiKeyInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveGeminiKey(); }}
+                      placeholder="Paste your Gemini API key…"
+                      className="w-full px-2.5 py-1.5 pr-8 text-[11px] rounded-md border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--foreground)] font-mono placeholder:font-sans placeholder:text-[var(--muted)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGeminiKey((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--foreground)]"
+                      aria-label={showGeminiKey ? "Hide key" : "Show key"}
+                    >
+                      {showGeminiKey ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={saveGeminiKey}
+                    disabled={!geminiKeyInput.trim()}
+                    className="flex-1 py-1.5 text-[11px] font-medium rounded-md bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {geminiKeySaved ? "✓ Saved!" : "Save Key"}
+                  </button>
+                  {geminiKey && (
+                    <button
+                      onClick={clearGeminiKey}
+                      className="px-3 py-1.5 text-[11px] font-medium rounded-md border border-[var(--border)] text-[var(--muted)] hover:text-red-500 hover:border-red-400 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-[var(--muted)] mt-2">
+                  Get a free key at{" "}
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-[var(--foreground)]"
+                  >
+                    aistudio.google.com
+                  </a>
+                </p>
+              </div>
             </div>
           )}
+
 
           {/* Learn Vocabulary Link */}
           <a

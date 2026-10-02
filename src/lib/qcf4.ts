@@ -58,14 +58,14 @@ async function fetchPageJson(page: number): Promise<PageData2> {
 
   const urls = [
     `/api/qcf4/${padded}`,
-    `${CDN_URL}/pages/${padded}.json`,
     `${RAW_BASE}/pages/${padded}.json`,
+    `${CDN_URL}/pages/${padded}.json`,
   ];
 
   let data: PageData2 | null = null;
   for (const url of urls) {
     try {
-      const res = await withTimeout(fetch(url), 10000, `Fetch page ${page}`);
+      const res = await withTimeout(fetch(url), 5000, `Fetch page ${page}`);
       if (res.ok) { data = await res.json(); break; }
     } catch {
       /* try next fallback */
@@ -86,55 +86,122 @@ export async function fetchPageData(page: number): Promise<PageData2> {
 
   const data = await fetchPageJson(page);
   pageCache.set(page, data);
+  if (data.font) {
+    loadSingleFont(data.font).catch(() => {});
+  }
+  for (const line of data.lines || []) {
+    for (const word of line.words || []) {
+      if (word.font && word.font !== data.font) {
+        loadPageFont(word.font).catch(() => {});
+      }
+    }
+  }
   return data;
+}
+
+const fontPromises = new Map<string, Promise<void>>();
+
+export function isFontLoaded(fontName: string): boolean {
+  if (fontCache.has(fontName)) return true;
+  if (typeof document !== "undefined" && document.fonts) {
+    try {
+      return document.fonts.check(`12px "${fontName}"`);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+export function getCachedPageData(page: number): PageData2 | null {
+  return pageCache.get(page) || null;
+}
+
+export async function prefetchPage(page: number): Promise<void> {
+  if (typeof window === "undefined" || page < 1 || page > TOTAL_PAGES) return;
+  try {
+    const data = await fetchPageData(page);
+    const fonts = new Set<string>();
+    if (data.font) fonts.add(data.font);
+    for (const line of data.lines || []) {
+      for (const word of line.words || []) {
+        if (word.font) fonts.add(word.font);
+      }
+    }
+    await Promise.all([...fonts].map((f) => loadPageFont(f).catch(() => {})));
+  } catch {}
 }
 
 async function loadSingleFont(fontName: string): Promise<void> {
   if (fontCache.has(fontName)) return;
+  if (fontPromises.has(fontName)) return fontPromises.get(fontName)!;
 
-  const db = await getDb();
-  if (db) {
-    const cached = await db.getFontData(fontName);
-    if (cached) {
-      try {
-        const fontFace = new FontFace(fontName, cached);
-        await fontFace.load();
-        document.fonts.add(fontFace);
-        fontCache.add(fontName);
-        return;
-      } catch {
-        /* fallback to network */
+  const promise = (async () => {
+    const db = await getDb();
+    if (db) {
+      const cached = await db.getFontData(fontName);
+      if (cached) {
+        try {
+          const fontFace = new FontFace(fontName, cached, {
+            style: "normal",
+            weight: "normal",
+            display: "block",
+          });
+          await fontFace.load();
+          document.fonts.add(fontFace);
+          fontCache.add(fontName);
+          return;
+        } catch {
+          /* fallback to network */
+        }
       }
     }
-  }
 
-  const suffix = fontName === "QCF4_QBSML" ? "" : "_W";
+    const suffix = fontName === "QCF4_QBSML" ? "" : "_W";
+    const fontUrls = [
+      `${RAW_BASE}/fonts-woff2/${fontName}${suffix}.woff2`,
+      `${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2`,
+    ];
 
-  try {
-    const fontFace = new FontFace(
-      fontName,
-      `url(${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2) format('woff2'), url(${CDN_URL}/fonts/${fontName}${suffix}.ttf) format('truetype')`,
-      { style: "normal", weight: "normal" }
-    );
+    let loaded = false;
+    for (const fontUrl of fontUrls) {
+      try {
+        const fontFace = new FontFace(
+          fontName,
+          `url(${fontUrl}) format('woff2')`,
+          { style: "normal", weight: "normal", display: "block" }
+        );
 
-    await withTimeout(fontFace.load(), 8000, `Font load ${fontName}`);
-    document.fonts.add(fontFace);
-    fontCache.add(fontName);
+        await withTimeout(fontFace.load(), 6000, `Font load ${fontName}`);
+        document.fonts.add(fontFace);
+        fontCache.add(fontName);
+        loaded = true;
 
-    if (db) {
-      fetch(`${CDN_URL}/fonts-woff2/${fontName}${suffix}.woff2`)
-        .then(async (resp) => {
-          if (resp.ok) {
-            const buf = await resp.arrayBuffer();
-            await db.storeFontData(fontName, buf);
-          }
-        })
-        .catch(() => {});
+        if (db) {
+          fetch(fontUrl)
+            .then(async (resp) => {
+              if (resp.ok) {
+                const buf = await resp.arrayBuffer();
+                await db.storeFontData(fontName, buf);
+              }
+            })
+            .catch(() => {});
+        }
+        break;
+      } catch (err) {
+        console.warn(`Font load attempt for ${fontName} from ${fontUrl} failed:`, err);
+      }
     }
-  } catch (err) {
-    console.warn(`Font load for ${fontName} failed or timed out:`, err);
-    fontCache.add(fontName);
-  }
+
+    if (!loaded) {
+      fontCache.add(fontName);
+    }
+  })().finally(() => {
+    fontPromises.delete(fontName);
+  });
+
+  fontPromises.set(fontName, promise);
+  return promise;
 }
 
 export async function loadPageFont(fontName: string): Promise<string> {
@@ -298,3 +365,124 @@ export const SURAH_NAMES: Record<number, { name: string; englishName: string }> 
   113: { name: "الفلق", englishName: "Al-Falaq" },
   114: { name: "الناس", englishName: "An-Nas" },
 };
+
+export const VOCALIZED_SURAH_TITLES: Record<number, string> = {
+  1: "سُورَةُ الفَاتِحَةِ",
+  2: "سُورَةُ البَقَرَةِ",
+  3: "سُورَةُ آلِ عِمْرَانَ",
+  4: "سُورَةُ النِّسَاءِ",
+  5: "سُورَةُ المَائِدَةِ",
+  6: "سُورَةُ الأَنْعَامِ",
+  7: "سُورَةُ الأَعْرَافِ",
+  8: "سُورَةُ الأَنْفَالِ",
+  9: "سُورَةُ التَّوْبَةِ",
+  10: "سُورَةُ يُونُسَ",
+  11: "سُورَةُ هُودٍ",
+  12: "سُورَةُ يُوسُفَ",
+  13: "سُورَةُ الرَّعْدِ",
+  14: "سُورَةُ إِبْرَاهِيمَ",
+  15: "سُورَةُ الحِجْرِ",
+  16: "سُورَةُ النَّحْلِ",
+  17: "سُورَةُ الإِسْرَاءِ",
+  18: "سُورَةُ الكَهْفِ",
+  19: "سُورَةُ مَرْيَمَ",
+  20: "سُورَةُ طٰهٰ",
+  21: "سُورَةُ الأَنْبِيَاءِ",
+  22: "سُورَةُ الحَجِّ",
+  23: "سُورَةُ المُؤْمِنُونَ",
+  24: "سُورَةُ النُّورِ",
+  25: "سُورَةُ الفُرْقَانِ",
+  26: "سُورَةُ الشُّعَرَاءِ",
+  27: "سُورَةُ النَّمْلِ",
+  28: "سُورَةُ القَصَصِ",
+  29: "سُورَةُ العَنْكَبُوتِ",
+  30: "سُورَةُ الرُّومِ",
+  31: "سُورَةُ لُقْمَانَ",
+  32: "سُورَةُ السَّجْدَةِ",
+  33: "سُورَةُ الأَحْزَابِ",
+  34: "سُورَةُ سَبَإٍ",
+  35: "سُورَةُ فَاطِرٍ",
+  36: "سُورَةُ يٰسٓ",
+  37: "سُورَةُ الصَّافَّاتِ",
+  38: "سُورَةُ صٓ",
+  39: "سُورَةُ الزُّمَرِ",
+  40: "سُورَةُ غَافِرٍ",
+  41: "سُورَةُ فُصِّلَتْ",
+  42: "سُورَةُ الشُّورَىٰ",
+  43: "سُورَةُ الزُّخْرُفِ",
+  44: "سُورَةُ الدُّخَانِ",
+  45: "سُورَةُ الجَاثِيَةِ",
+  46: "سُورَةُ الأَحْقَافِ",
+  47: "سُورَةُ مُحَمَّدٍ",
+  48: "سُورَةُ الفَتْحِ",
+  49: "سُورَةُ الحُجُرَاتِ",
+  50: "سُورَةُ قٓ",
+  51: "سُورَةُ الذَّارِيَاتِ",
+  52: "سُورَةُ الطُّورِ",
+  53: "سُورَةُ النَّجْمِ",
+  54: "سُورَةُ القَمَرِ",
+  55: "سُورَةُ الرَّحْمَٰنِ",
+  56: "سُورَةُ الوَاقِعَةِ",
+  57: "سُورَةُ الحَدِيدِ",
+  58: "سُورَةُ المُجَادَلَةِ",
+  59: "سُورَةُ الحَشْرِ",
+  60: "سُورَةُ المُمْتَحَنَةِ",
+  61: "سُورَةُ الصَّفِّ",
+  62: "سُورَةُ الجُمُعَةِ",
+  63: "سُورَةُ المُنَافِقُونَ",
+  64: "سُورَةُ التَّغَابُنِ",
+  65: "سُورَةُ الطَّلَاقِ",
+  66: "سُورَةُ التَّحْرِيمِ",
+  67: "سُورَةُ المُلْكِ",
+  68: "سُورَةُ القَلَمِ",
+  69: "سُورَةُ الحَاقَّةِ",
+  70: "سُورَةُ المَعَارِجِ",
+  71: "سُورَةُ نُوحٍ",
+  72: "سُورَةُ الجِنِّ",
+  73: "سُورَةُ المُزَّمِّلِ",
+  74: "سُورَةُ المُدَّثِّرِ",
+  75: "سُورَةُ القِيَامَةِ",
+  76: "سُورَةُ الإِنْسَانِ",
+  77: "سُورَةُ المُرْسَلَاتِ",
+  78: "سُورَةُ النَّبَإِ",
+  79: "سُورَةُ النَّازِعَاتِ",
+  80: "سُورَةُ عَبَسَ",
+  81: "سُورَةُ التَّكْوِيرِ",
+  82: "سُورَةُ الانْفِطَارِ",
+  83: "سُورَةُ المُطَفِّفِينَ",
+  84: "سُورَةُ الانْشِقَاقِ",
+  85: "سُورَةُ البُرُوجِ",
+  86: "سُورَةُ الطَّارِقِ",
+  87: "سُورَةُ الأَعْلَىٰ",
+  88: "سُورَةُ الغَاشِيَةِ",
+  89: "سُورَةُ الفَجْرِ",
+  90: "سُورَةُ البَلَدِ",
+  91: "سُورَةُ الشَّمْسِ",
+  92: "سُورَةُ اللَّيْلِ",
+  93: "سُورَةُ الضُّحَىٰ",
+  94: "سُورَةُ الشَّرْحِ",
+  95: "سُورَةُ التِّينِ",
+  96: "سُورَةُ العَلَقِ",
+  97: "سُورَةُ القَدْرِ",
+  98: "سُورَةُ البَيِّنَةِ",
+  99: "سُورَةُ الزَّلْزَلَةِ",
+  100: "سُورَةُ العَادِيَاتِ",
+  101: "سُورَةُ القَارِعَةِ",
+  102: "سُورَةُ التَّكَاثُرِ",
+  103: "سُورَةُ العَصْرِ",
+  104: "سُورَةُ الهُمَزَةِ",
+  105: "سُورَةُ الفِيلِ",
+  106: "سُورَةُ قُرَيْشٍ",
+  107: "سُورَةُ المَاعُونِ",
+  108: "سُورَةُ الكَوْثَرِ",
+  109: "سُورَةُ الكَافِرُونَ",
+  110: "سُورَةُ النَّصْرِ",
+  111: "سُورَةُ المَسَدِ",
+  112: "سُورَةُ الإِخْلَاصِ",
+  113: "سُورَةُ الفَلَقِ",
+  114: "سُورَةُ النَّاسِ",
+};
+
+export function getVocalizedSurahTitle(surahNumber: number): string {
+  return VOCALIZED_SURAH_TITLES[surahNumber] || `سُورَةُ ${SURAH_NAMES[surahNumber]?.name || ""}`;
+}

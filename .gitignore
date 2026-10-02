@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch & local artifacts
+scratch/
+book-effect-reference/
+*.apk
+*.mov
+android-native/
+twa/

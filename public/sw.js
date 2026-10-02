@@ -1,4 +1,4 @@
-const CACHE_NAME = "quran-easy-v2";
+const CACHE_NAME = "quran-easy-v21";
 const PRECACHE_URLS = [
   "/",
   "/manifest.json",
@@ -78,16 +78,14 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const fetched = fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
-      }).catch(() => cached);
-
-      return cached || fetched;
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });

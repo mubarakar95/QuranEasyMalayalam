@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { PageLine, loadPageFont, fetchPageData } from "@/lib/qcf4";
-import { HighlightWord } from "@/lib/types";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import { PageLine, loadPageFont, fetchPageData, getCachedPageData, isFontLoaded, SURAH_NAMES, getVocalizedSurahTitle } from "@/lib/qcf4";
+import { HighlightWord, JUZ_DATA, toArabicDigits, AudioMode } from "@/lib/types";
 import { fetchMalayalamWBW } from "@/lib/malayalam-wbw";
+import { fetchTranslationPage } from "@/lib/quran-api";
+import { fetchAyahAlignment, fetchPageAlignments, subscribeAlignments, PhraseAlignment } from "@/lib/ar-ml-alignments";
+import MadaniFrame from "@/components/MadaniFrame";
+import MadaniAyahMarker from "@/components/MadaniAyahMarker";
+import MadaniSurahHeader from "@/components/MadaniSurahHeader";
 
 interface MushafPageProps {
   currentPage: number;
@@ -14,9 +20,21 @@ interface MushafPageProps {
   translationMap?: Map<string, string> | null;
   showWordByWord?: boolean;
   onOpenAyahSheet?: (verseKey: string) => void;
+  onPlayAyah?: (verseKey: string, mode: AudioMode) => void;
+  isSinglePage?: boolean;
+  activeAyahSheetKey?: string | null;
+  onAyahSheetChange?: (verseKey: string | null) => void;
 }
 
 function getWordGlobalIndex(words: PageLine["words"], verseKey: string, wordIndex: number): number | null {
+  for (const word of words) {
+    if (word.type === "word" && word.verse_key === verseKey) {
+      if (word.position - 1 === wordIndex) {
+        return word.code;
+      }
+    }
+  }
+  // Fallback to sequential index if position is unavailable
   let quranWordIdx = 0;
   for (const word of words) {
     if (word.type === "word" && word.verse_key === verseKey) {
@@ -53,12 +71,13 @@ function getWordMeaning(
   wordByWordMap: Map<number, string>,
   showWordByWord: boolean,
 ): string | null {
+  if (wbwData && w.type === "word" && w.verse_key) {
+    return findWbwMeaning(wbwData, w.verse_key, w.position);
+  }
   if (showWordByWord) {
     return wordByWordMap.get(w.code) ?? null;
   }
-  return wbwData && w.type === "word" && w.verse_key
-    ? findWbwMeaning(wbwData, w.verse_key, w.position)
-    : null;
+  return null;
 }
 
 function findAdjacentGroup(
@@ -71,13 +90,14 @@ function findAdjacentGroup(
   const idx = allWords.findIndex((w) => w.code === tappedCode);
   if (idx === -1) return new Set([tappedCode]);
 
-  const tappedMl = getWordMeaning(allWords[idx], wbwData, wordByWordMap, showWordByWord);
+  const targetWord = allWords[idx];
+  const tappedMl = getWordMeaning(targetWord, wbwData, wordByWordMap, showWordByWord);
   if (!tappedMl) return new Set([tappedCode]);
 
   const group = new Set<number>([tappedCode]);
   for (let i = idx - 1; i >= 0; i--) {
     const w = allWords[i];
-    if (w.type !== "word") break;
+    if (w.type !== "word" || w.verse_key !== targetWord.verse_key) break;
     if (getWordMeaning(w, wbwData, wordByWordMap, showWordByWord) === tappedMl) {
       group.add(w.code);
     } else {
@@ -86,7 +106,7 @@ function findAdjacentGroup(
   }
   for (let i = idx + 1; i < allWords.length; i++) {
     const w = allWords[i];
-    if (w.type !== "word") break;
+    if (w.type !== "word" || w.verse_key !== targetWord.verse_key) break;
     if (getWordMeaning(w, wbwData, wordByWordMap, showWordByWord) === tappedMl) {
       group.add(w.code);
     } else {
@@ -137,24 +157,156 @@ function groupWbwWords(
   return groups;
 }
 
-export default function MushafPage({ currentPage, highlightVerseKey, highlightWord, onVerseClick, showTranslation = false, translationMap = null, showWordByWord = false, onOpenAyahSheet }: MushafPageProps) {
-  const [lines, setLines] = useState<PageLine[]>([]);
-  const [loading, setLoading] = useState(true);
+function MushafPageInner({
+  currentPage,
+  highlightVerseKey,
+  highlightWord,
+  onVerseClick,
+  showTranslation = false,
+  translationMap = null,
+  showWordByWord = false,
+  onOpenAyahSheet,
+  onPlayAyah,
+  isSinglePage = false,
+  activeAyahSheetKey,
+  onAyahSheetChange,
+}: MushafPageProps) {
+  const cachedInitial = getCachedPageData(currentPage);
+  const [lines, setLines] = useState<PageLine[]>(() => cachedInitial?.lines || []);
+
+  const verseWordsMap = useMemo(() => {
+    const map = new Map<string, PageLine["words"]>();
+    for (const line of lines) {
+      for (const word of line.words) {
+        if (word.verse_key) {
+          if (!map.has(word.verse_key)) {
+            map.set(word.verse_key, []);
+          }
+          map.get(word.verse_key)!.push(word);
+        }
+      }
+    }
+    return map;
+  }, [lines]);
+
+  const [loading, setLoading] = useState(() => !cachedInitial);
+  const [fontReady, setFontReady] = useState(() => {
+    if (!cachedInitial) return false;
+    const fonts = new Set<string>();
+    if (cachedInitial.font) fonts.add(cachedInitial.font);
+    for (const l of cachedInitial.lines || []) {
+      for (const w of l.words || []) {
+        if (w.font) fonts.add(w.font);
+      }
+    }
+    for (const f of fonts) {
+      if (!isFontLoaded(f)) return false;
+    }
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
-  const [fontsLoaded, setFontsLoaded] = useState(false);
   const [wbwData, setWbwData] = useState<Record<string, string[]> | null>(null);
   const [wordPopover, setWordPopover] = useState<{ text: string; verseKey: string; el: Element } | null>(null);
   const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const ttsAudioRef = useRef<HTMLAudioElement>(null);
   const [dataLoadingSlow, setDataLoadingSlow] = useState(false);
-  const [ayahSheet, setAyahSheet] = useState<{ verseKey: string } | null>(null);
+  const [localAyahSheet, setLocalAyahSheet] = useState<{ verseKey: string } | null>(null);
   const [tappedWordCodes, setTappedWordCodes] = useState<Set<number> | null>(null);
   const tappedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const openAyahSheet = useCallback((verseKey: string) => {
-    setAyahSheet({ verseKey });
-    onOpenAyahSheet?.(verseKey);
-  }, [onOpenAyahSheet]);
+  const [sheetTranslationMap, setSheetTranslationMap] = useState<Map<string, string> | null>(null);
+  const [ayahAlignments, setAyahAlignments] = useState<Record<string, PhraseAlignment[]>>({});
+  const [sheetSelectedPositions, setSheetSelectedPositions] = useState<Set<number> | null>(null);
+
+  // If controlled via props (activeAyahSheetKey !== undefined), only open if this page contains this verseKey!
+  const currentSheetVk: string | null =
+    activeAyahSheetKey !== undefined
+      ? activeAyahSheetKey && verseWordsMap.has(activeAyahSheetKey)
+        ? activeAyahSheetKey
+        : null
+      : localAyahSheet?.verseKey ?? null;
+
+  const openAyahSheet = useCallback(
+    (verseKey: string) => {
+      if (onAyahSheetChange) {
+        onAyahSheetChange(verseKey);
+      } else {
+        setLocalAyahSheet({ verseKey });
+      }
+    },
+    [onAyahSheetChange]
+  );
+
+  const closeAyahSheet = useCallback(() => {
+    if (onAyahSheetChange) {
+      onAyahSheetChange(null);
+    } else {
+      setLocalAyahSheet(null);
+    }
+    setSheetSelectedPositions(null);
+  }, [onAyahSheetChange]);
+
+  // When uncontrolled and audio plays next ayah, auto-advance local sheet
+  useEffect(() => {
+    if (activeAyahSheetKey !== undefined) return;
+    if (!localAyahSheet || !highlightVerseKey) return;
+    if (localAyahSheet.verseKey !== highlightVerseKey && verseWordsMap.has(highlightVerseKey)) {
+      setLocalAyahSheet({ verseKey: highlightVerseKey });
+      setSheetSelectedPositions(null);
+    }
+  }, [highlightVerseKey, localAyahSheet, verseWordsMap, activeAyahSheetKey]);
+
+  // When currentSheetVk changes, reset selected word positions
+  useEffect(() => {
+    setSheetSelectedPositions(null);
+  }, [currentSheetVk]);
+
+  // Subscribe to real-time alignments loaded during playback or batch sync
+  useEffect(() => {
+    return subscribeAlignments((newAlignments) => {
+      setAyahAlignments((prev) => ({ ...prev, ...newAlignments }));
+    });
+  }, []);
+
+  // When viewing/turning page: ONLY load already cached alignments from Supabase (0 Gemini calls!)
+  useEffect(() => {
+    fetchPageAlignments(currentPage, false).then((res) => {
+      if (res && Object.keys(res).length > 0) {
+        setAyahAlignments((prev) => ({ ...prev, ...res }));
+      }
+    });
+  }, [currentPage]);
+
+  // When sheet opens: only read from cache without triggering per-ayah Gemini calls
+  useEffect(() => {
+    if (!currentSheetVk) return;
+    const vk = currentSheetVk;
+    if (ayahAlignments[vk]) return;
+
+    const [s, a] = vk.split(":").map(Number);
+    fetchAyahAlignment(s, a, currentPage, false).then((phrases) => {
+      if (phrases && phrases.length > 0) {
+        setAyahAlignments((prev) => ({ ...prev, [vk]: phrases }));
+      }
+    });
+  }, [currentSheetVk, ayahAlignments, currentPage]);
+
+  useEffect(() => {
+    if (!currentSheetVk) return;
+    const vk = currentSheetVk;
+    if (translationMap?.get(vk) || sheetTranslationMap?.get(vk)) return;
+
+    let cancelled = false;
+    fetchTranslationPage(currentPage)
+      .then((map) => {
+        if (!cancelled) setSheetTranslationMap(map);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSheetVk, currentPage, translationMap, sheetTranslationMap]);
 
   const dismissPopover = useCallback(() => {
     setWordPopover(null);
@@ -182,29 +334,56 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
 
   useEffect(() => {
     let cancelled = false;
-    setFontsLoaded(false);
-    setLoading(true);
+    const cached = getCachedPageData(currentPage);
+    if (cached) {
+      setLines(cached.lines || []);
+      setLoading(false);
+      const fonts = new Set<string>();
+      if (cached.font) fonts.add(cached.font);
+      for (const l of cached.lines || []) {
+        for (const w of l.words || []) {
+          if (w.font) fonts.add(w.font);
+        }
+      }
+      let allLoaded = true;
+      for (const f of fonts) {
+        if (!isFontLoaded(f)) {
+          allLoaded = false;
+          break;
+        }
+      }
+      setFontReady(allLoaded);
+      if (!allLoaded) {
+        Promise.all([...fonts].map((f) => loadPageFont(f).catch(() => {}))).then(() => {
+          if (!cancelled) setFontReady(true);
+        });
+      }
+    } else {
+      setLoading(true);
+      setFontReady(false);
+    }
     setDataLoadingSlow(false);
     setError(null);
 
     const slowTimer = setTimeout(() => { if (!cancelled) setDataLoadingSlow(true); }, 10000);
 
     fetchPageData(currentPage)
-      .then((data) => {
+      .then(async (data) => {
         if (cancelled) return;
         setLines(data.lines || []);
         setLoading(false);
 
         const fonts = new Set<string>();
-        fonts.add(data.font);
+        if (data.font) fonts.add(data.font);
         for (const line of data.lines || []) {
           for (const word of line.words || []) {
-            fonts.add(word.font);
+            if (word.font) fonts.add(word.font);
           }
         }
-        Promise.all([...fonts].map((f) => loadPageFont(f).catch(() => {})))
-          .then(() => { if (!cancelled) setFontsLoaded(true); })
-          .catch(() => {});
+        await Promise.all([...fonts].map((f) => loadPageFont(f).catch(() => {})));
+        if (!cancelled) {
+          setFontReady(true);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -229,12 +408,6 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     return () => { cancelled = true; };
   }, [wbwData]);
 
-  const highlightedWordCode = useMemo(() => {
-    if (!highlightWord || lines.length === 0) return null;
-    const allWords = lines.flatMap((l) => l.words);
-    return getWordGlobalIndex(allWords, highlightWord.verseKey, highlightWord.wordIndex);
-  }, [highlightWord, lines]);
-
   const wordByWordMap = useMemo(() => {
     if (!showWordByWord || !wbwData || lines.length === 0) return new Map<number, string>();
 
@@ -255,6 +428,34 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     return result;
   }, [showWordByWord, wbwData, lines]);
 
+  const highlightedWordCodes = useMemo(() => {
+    if (!highlightWord || lines.length === 0) return null;
+    const allWords = lines.flatMap((l) => l.words);
+
+    // When explicit wordIndices are provided (e.g. Malayalam spoken clause bundle),
+    // highlight all matching Arabic words simultaneously!
+    if (highlightWord.wordIndices && highlightWord.wordIndices.length > 0) {
+      const codeSet = new Set<number>();
+      for (const idx of highlightWord.wordIndices) {
+        const code = getWordGlobalIndex(allWords, highlightWord.verseKey, idx);
+        if (code !== null) codeSet.add(code);
+      }
+      if (codeSet.size > 0) return codeSet;
+    }
+
+    const targetCode = getWordGlobalIndex(allWords, highlightWord.verseKey, highlightWord.wordIndex);
+    if (targetCode === null) return null;
+
+    // When bundle is requested (e.g. Malayalam audio playback), highlight the entire
+    // adjacent bundle of Arabic words that share this same meaning!
+    if (highlightWord.bundle) {
+      return findAdjacentGroup(allWords, targetCode, wbwData, wordByWordMap, showWordByWord);
+    }
+
+    return new Set<number>([targetCode]);
+  }, [highlightWord, lines, wbwData, wordByWordMap, showWordByWord]);
+
+
   const verseWordsOrder = useMemo(() => {
     const order: string[] = [];
     const seen = new Set<string>();
@@ -269,20 +470,6 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     return order;
   }, [lines]);
 
-  const verseWordsMap = useMemo(() => {
-    const map = new Map<string, PageLine["words"]>();
-    for (const line of lines) {
-      for (const word of line.words) {
-        if (word.verse_key) {
-          if (!map.has(word.verse_key)) {
-            map.set(word.verse_key, []);
-          }
-          map.get(word.verse_key)!.push(word);
-        }
-      }
-    }
-    return map;
-  }, [lines]);
 
   const groupedLines = useMemo(() => {
     if (!showWordByWord || wordByWordMap.size === 0) return null;
@@ -294,26 +481,20 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
 
   const flatWords = useMemo(() => lines.flatMap((l) => l.words), [lines]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh] px-4">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-5 h-5 border-2 border-[var(--foreground)] border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-[var(--muted)]">
-            {dataLoadingSlow ? "Taking longer than expected..." : "Loading Mushaf..."}
-          </p>
-          {dataLoadingSlow && (
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-1 px-3 py-1 text-xs font-medium border border-[var(--border)] rounded-md hover:bg-[var(--surface)] transition-colors"
-            >
-              Reload page
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
+  const currentJuzObj = useMemo(() => {
+    return JUZ_DATA.slice().reverse().find((j) => currentPage >= j.startPage) || JUZ_DATA[0];
+  }, [currentPage]);
+
+  const firstVerseKey = useMemo(() => {
+    for (const line of lines) {
+      for (const w of line.words) {
+        if (w.verse_key) return w.verse_key;
+      }
+    }
+    return null;
+  }, [lines]);
+
+  const isContentReady = !loading && fontReady && lines.length > 0;
 
   if (error) {
     return (
@@ -342,7 +523,7 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
     const showAyahByAyah = showTranslation && !showWordByWord && translationMap && verseWordsOrder.length > 0;
 
     const popoverEl = wordPopover && (
-      <div className="word-popover">
+      <div className="word-popover" onClick={(e) => e.stopPropagation()}>
         <span className="word-popover-ml">{wordPopover.text}</span>
         <button
           className="word-popover-speak"
@@ -355,9 +536,23 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
             ttsAudioRef.current.play().catch(() => {});
           }}
           aria-label="Speak meaning"
+          title="Speak meaning"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+          </svg>
+        </button>
+        <button
+          className="word-popover-close"
+          onClick={(e) => {
+            e.stopPropagation();
+            dismissPopover();
+          }}
+          aria-label="Dismiss meaning"
+          title="Dismiss"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         </button>
         <audio ref={ttsAudioRef} preload="none" />
@@ -366,8 +561,8 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
 
     if (showAyahByAyah) {
       return (
-        <div className="mushaf-container">
-          {popoverEl}
+        <>
+          <div className="mushaf-container">
           {verseWordsOrder.map((vk) => {
             const words = verseWordsMap.get(vk) || [];
             const translation = translationMap.get(vk);
@@ -381,23 +576,31 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
               >
                 <div className="verse-block-arabic">
                   {words.map((w) => {
-                    const isWordHighlighted = highlightedWordCode !== null && w.code === highlightedWordCode && w.verse_key === vk;
+                    const isWordHighlighted = highlightedWordCodes !== null && highlightedWordCodes.has(w.code) && w.verse_key === vk;
+
                     const mlTooltip = wbwData && w.type === "word" && w.verse_key
                       ? findWbwMeaning(wbwData, w.verse_key, w.position)
                       : null;
 
                     if (w.type === "end") {
                       return (
-                        <span key={w.code} className={`mushaf-end-marker ${isHighlighted ? "highlighted" : ""}`} style={{ fontFamily: `"${w.font}", serif` }}>
-                          {w.char}
-                        </span>
+                        <MadaniAyahMarker
+                          key={w.code}
+                          char={w.char}
+                          verseKey={w.verse_key}
+                          highlighted={isHighlighted}
+                          onClick={() => w.verse_key && onVerseClick?.(w.verse_key)}
+                        />
                       );
                     }
                     if (w.type === "surah_header") {
                       return (
-                        <span key={w.code} className="mushaf-surah-header" style={{ fontFamily: `"${w.font}", serif` }}>
-                          {w.char}
-                        </span>
+                        <MadaniSurahHeader
+                          key={w.code}
+                          char={w.char}
+                          font={w.font}
+                          title={w.text}
+                        />
                       );
                     }
                     if (w.type === "bismillah") {
@@ -413,7 +616,8 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
                     return (
                       <span
                         key={w.code}
-                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${isWordTapped ? "word-tapped" : ""}`}
+                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""}`}
+
                         style={{ fontFamily: `"${w.font}", serif` }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -445,14 +649,16 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
             );
           })}
         </div>
+        {typeof document !== "undefined" && popoverEl ? createPortal(popoverEl, document.body) : null}
+        </>
       );
     }
 
     let ayahSheetContent = null;
-    if (ayahSheet) {
-      const vk = ayahSheet.verseKey;
+    if (currentSheetVk) {
+      const vk = currentSheetVk;
       const words = verseWordsMap.get(vk)?.filter((w) => w.type === "word") || [];
-      const translation = translationMap?.get(vk);
+      const translation = translationMap?.get(vk) || sheetTranslationMap?.get(vk);
       const sheetGroups: { words: typeof words; ml: string | null }[] = [];
       let i = 0;
       while (i < words.length) {
@@ -475,36 +681,124 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
         }
       }
       ayahSheetContent = (
-        <div className="ayah-sheet-backdrop" onClick={() => setAyahSheet(null)}>
+        <div className="ayah-sheet-backdrop" onClick={closeAyahSheet}>
           <div className="ayah-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="ayah-sheet-handle" />
-            <button className="ayah-sheet-close" onClick={() => setAyahSheet(null)}>
+            <button className="ayah-sheet-close" onClick={closeAyahSheet}>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </button>
             <div className="ayah-sheet-header flex items-center justify-between">
               <span className="ayah-sheet-verse-ref">{vk}</span>
-              <button
-                onClick={() => onOpenAyahSheet?.(vk)}
-                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]/20 transition-colors"
-                aria-label="Play Malayalam audio"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                </svg>
-                <span>മലയാളം Audio</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => onPlayAyah ? onPlayAyah(vk, "arabic") : onOpenAyahSheet?.(vk)}
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]/20 transition-colors"
+                  aria-label="Play Arabic audio"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                  </svg>
+                  <span>العربية Audio</span>
+                </button>
+                <button
+                  onClick={() => onPlayAyah ? onPlayAyah(vk, "malayalam") : onOpenAyahSheet?.(vk)}
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)]/20 transition-colors"
+                  aria-label="Play Malayalam audio"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+                  </svg>
+                  <span>മലയാളം Audio</span>
+                </button>
+              </div>
             </div>
-            {translation && (
-              <div className="ayah-sheet-translation" dir="ltr">{translation}</div>
+            {translation ? (
+              <div className="ayah-sheet-translation leading-relaxed" dir="ltr">
+                {ayahAlignments[vk] && ayahAlignments[vk].length > 0 ? (
+                  ayahAlignments[vk].map((item, idx) => {
+                    const positions = Array.isArray(item.arabicPositions) ? item.arabicPositions : [];
+                    const activeWordPositions = new Set<number>();
+                    if (highlightWord && highlightWord.verseKey === vk) {
+                      if (highlightWord.wordIndices && highlightWord.wordIndices.length > 0) {
+                        for (const wIdx of highlightWord.wordIndices) activeWordPositions.add(wIdx + 1);
+                      } else {
+                        activeWordPositions.add(highlightWord.wordIndex + 1);
+                      }
+                    }
+                    const isPosActive = (pos: number) => {
+                      if (activeWordPositions.has(pos)) return true;
+                      if (sheetSelectedPositions !== null && sheetSelectedPositions.has(pos)) return true;
+                      return false;
+                    };
+                    const isPhraseActive = positions.some((pos) => isPosActive(pos));
+
+                    return (
+                      <span
+                        key={idx}
+                        onClick={() => {
+                          if (positions.length === 0) return;
+                          setSheetSelectedPositions((prev) => {
+                            if (prev && positions.every((pos) => prev.has(pos))) {
+                              return null;
+                            }
+                            return new Set(positions);
+                          });
+                        }}
+                        className={`transition-all duration-150 rounded px-1.5 py-0.5 mx-0.5 inline-block cursor-pointer ${
+                          isPhraseActive
+                            ? "bg-amber-400/35 text-amber-950 dark:text-amber-100 font-semibold ring-1 ring-amber-500/60 shadow-sm"
+                            : "hover:bg-amber-500/10 text-[var(--foreground)]"
+                        }`}
+                        title="Click to highlight corresponding Arabic words"
+                      >
+                        {item.phrase}
+                      </span>
+                    );
+                  })
+                ) : (
+                  translation
+                )}
+              </div>
+            ) : (
+              <div className="ayah-sheet-translation text-[var(--muted)] text-xs italic py-1 animate-pulse" dir="ltr">വിവർത്തനം ലഭ്യമാക്കുന്നു...</div>
             )}
             <div className="ayah-sheet-divider" />
             <div className="ayah-sheet-words">
               {sheetGroups.map((g, i) => {
                 const groupMl = g.ml || findWbwMeaning(wbwData, vk, g.words[g.words.length - 1].position);
+                const activeWordPositions = new Set<number>();
+                if (highlightWord && highlightWord.verseKey === vk) {
+                  if (highlightWord.wordIndices && highlightWord.wordIndices.length > 0) {
+                    for (const wIdx of highlightWord.wordIndices) activeWordPositions.add(wIdx + 1);
+                  } else {
+                    activeWordPositions.add(highlightWord.wordIndex + 1);
+                  }
+                }
+                const isPosActive = (pos: number) => {
+                  if (activeWordPositions.has(pos)) return true;
+                  if (sheetSelectedPositions !== null && sheetSelectedPositions.has(pos)) return true;
+                  return false;
+                };
+                const wordPositions = g.words.map((w) => w.position);
+                const isRowActive = wordPositions.some((pos) => isPosActive(pos));
+
                 return (
-                  <div key={i} className="ayah-sheet-word-row">
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (wordPositions.length === 0) return;
+                      setSheetSelectedPositions((prev) => {
+                        if (prev && wordPositions.every((pos) => prev.has(pos))) {
+                          return null;
+                        }
+                        return new Set(wordPositions);
+                      });
+                    }}
+                    className={`ayah-sheet-word-row cursor-pointer ${isRowActive ? "ayah-sheet-row-active" : ""}`}
+                    title="Click to highlight corresponding Malayalam phrase"
+                  >
                     <span className="ayah-sheet-ml">{groupMl || ""}</span>
                     <span className="ayah-sheet-col" />
                     <span className="ayah-sheet-arabic">
@@ -521,192 +815,286 @@ export default function MushafPage({ currentPage, highlightVerseKey, highlightWo
       );
     }
 
+    const currentSurahNumber = firstVerseKey ? parseInt(firstVerseKey.split(":")[0], 10) : 1;
+    const surahHeaderArabic = getVocalizedSurahTitle(currentSurahNumber);
+    const juzHeaderArabic = currentJuzObj.name;
+    const pageNumberArabic = toArabicDigits(currentPage);
+    const isSpecialPage = currentPage === 1 || currentPage === 2;
+
     return (
     <>
-    <div className="mushaf-container">
-      {popoverEl}
-      {groupedLines
-        ? groupedLines.map((line) => (
-          <div key={line.line}>
-            <div className="mushaf-line wbw-active">
-              {line.groups.map((group) => {
-                if (group.mlText) {
-                    const isGroupTapped = tappedWordCodes !== null && group.words.some((w) => tappedWordCodes.has(w.code));
+    <div className="madani-mushaf-page-container relative w-full h-full">
+      {/* Ornate Madani Frame Layer with authentic white page margins */}
+      <MadaniFrame
+        isSinglePage={isSinglePage}
+        header={
+          <div className="madani-header-bar flex items-center justify-between w-full h-full select-none" dir="rtl">
+            {/* Authentic Mushaf Layout:
+                In RTL:
+                - Right Page (Odd): Outer is on RIGHT (Surah), Spine is on LEFT (Juz)
+                - Left Page (Even): Spine is on RIGHT (Juz), Outer is on LEFT (Surah) */}
+            {currentPage % 2 === 1 ? (
+              <>
+                <span className="madani-surah-title">{surahHeaderArabic}</span>
+                <span className="madani-juz-title">{juzHeaderArabic}</span>
+              </>
+            ) : (
+              <>
+                <span className="madani-juz-title">{juzHeaderArabic}</span>
+                <span className="madani-surah-title">{surahHeaderArabic}</span>
+              </>
+            )}
+          </div>
+        }
+        footer={
+          <div className="madani-footer-bar flex items-center justify-center w-full h-full select-none">
+            <span className="madani-page-number">
+              {pageNumberArabic}
+            </span>
+          </div>
+        }
+      >
+        {loading && lines.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="w-5 h-5 border-2 border-[#C59B27] border-t-transparent rounded-full animate-spin opacity-40" />
+          </div>
+        )}
+        <div
+          className={`mushaf-container ${isSpecialPage ? "special-page" : ""}`}
+        >
+          {groupedLines
+            ? groupedLines.map((line) => {
+              const isSurahHeader = line.words.some((w) => w.type === "surah_header");
+              const isBismillah = line.words.some((w) => w.type === "bismillah");
+              const isShortEndLine = line.words.length <= 4 && line.words.some((w) => w.type === "end");
+              const isCentered = isSurahHeader || isBismillah || isShortEndLine;
+
+              return (
+                <div
+                  key={line.line}
+                  className={`mushaf-line wbw-active ${isCentered ? "mushaf-line-centered" : ""} ${isSurahHeader ? "mushaf-line-surah-header" : ""}`}
+                >
+                  {line.groups.map((group) => {
+                    if (group.mlText) {
+                        const isGroupTapped = tappedWordCodes !== null && group.words.some((w) => tappedWordCodes.has(w.code));
+                        const isGroupMlHighlighted =
+                          highlightedWordCodes !== null &&
+                          group.words.some((w) => highlightedWordCodes.has(w.code));
+
+                        return (
+                        <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""} ${isGroupMlHighlighted ? "wbw-group-ml-highlighted" : ""}`}>
+                          <span className="wbw-words-row">
+                            {group.words.map((w) => {
+                              const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
+                              const isWH = highlightedWordCodes !== null && highlightedWordCodes.has(w.code);
+                              const wordHClass = isWH ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : "";
+                              return (
+                                <span
+                                  key={w.code}
+                                  className={`mushaf-word ${isVH ? "highlighted" : ""} ${wordHClass}`}
+
+                                  style={{ fontFamily: `"${w.font}", serif` }}
+                                  onClick={(e) => {
+                                    if (w.verse_key) {
+                                      setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
+                                      setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
+                                      clearTimeout(tappedTimeoutRef.current);
+                                      tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 1000);
+                                    }
+                                  }}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    if (w.verse_key) openAyahSheet(w.verse_key);
+                                  }}
+                                  title={`${w.text} — ${group.mlText}`}
+                                >
+                                  {w.char}
+                                </span>
+                              );
+                            })}
+                          </span>
+                          <span className="wbw-ml">{group.mlText}</span>
+                        </span>
+                        );
+                    }
+                    const w = group.words[0];
+                    const isVerseHighlighted = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
+                    const isWordHighlighted = highlightedWordCodes !== null && highlightedWordCodes.has(w.code);
+
+
+                    if (w.type === "end") {
+                      return (
+                        <MadaniAyahMarker
+                          key={w.code}
+                          char={w.char}
+                          verseKey={w.verse_key}
+                          highlighted={isVerseHighlighted}
+                          onClick={() => w.verse_key && onVerseClick?.(w.verse_key)}
+                        />
+                      );
+                    }
+
+                    if (w.type === "surah_header") {
+                      return (
+                        <MadaniSurahHeader
+                          key={w.code}
+                          char={w.char}
+                          font={w.font}
+                          title={w.text}
+                        />
+                      );
+                    }
+
+                    if (w.type === "bismillah") {
+                      return (
+                        <span key={w.code} className="mushaf-bsml" style={{ fontFamily: `"${w.font}", serif` }}>
+                          {w.char}
+                        </span>
+                      );
+                    }
+
+                    const mlText = w.verse_key ? findWbwMeaning(wbwData, w.verse_key, w.position) : null;
+                    const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
 
                     return (
-                    <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""}`}>
-                      <span className="wbw-words-row">
-                        {group.words.map((w) => {
-                          const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
-                          const isWH = highlightedWordCode !== null && w.code === highlightedWordCode;
-                          return (
-                            <span
-                              key={w.code}
-                              className={`mushaf-word ${isVH ? "highlighted" : ""} ${isWH ? "word-highlighted" : ""}`}
-                              style={{ fontFamily: `"${w.font}", serif` }}
-                              onClick={(e) => {
-                                if (w.verse_key) {
-                                  setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
-                                  setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
-                                  clearTimeout(tappedTimeoutRef.current);
-                                  tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 1000);
-                                }
-                              }}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                if (w.verse_key) openAyahSheet(w.verse_key);
-                              }}
-                              title={`${w.text} — ${group.mlText}`}
-                            >
-                              {w.char}
-                            </span>
-                          );
-                        })}
+                      <span
+                        key={w.code}
+                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""}`}
+
+                        style={{ fontFamily: `"${w.font}", serif` }}
+                        onClick={(e) => {
+                          if (w.verse_key) {
+                            if (mlText) {
+                              setWordPopover({ text: mlText, verseKey: w.verse_key, el: e.currentTarget });
+                              setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
+                              clearTimeout(tappedTimeoutRef.current);
+                              tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
+                            }
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (w.verse_key) openAyahSheet(w.verse_key);
+                        }}
+                        title={mlText ? `${w.text} — ${mlText}` : w.text}
+                      >
+                        {w.char}
                       </span>
-                      <span className="wbw-ml">{group.mlText}</span>
-                    </span>
                     );
-                }
-                const w = group.words[0];
-                const isVerseHighlighted = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
-                const isWordHighlighted = highlightedWordCode !== null && w.code === highlightedWordCode;
+                  })}
+                </div>
+              );
+            })
+            : lines.map((line) => {
+              const isSurahHeader = line.words.some((w) => w.type === "surah_header");
+              const isBismillah = line.words.some((w) => w.type === "bismillah");
+              const isShortEndLine = line.words.length <= 4 && line.words.some((w) => w.type === "end");
+              const isCentered = isSurahHeader || isBismillah || isShortEndLine;
 
-                if (w.type === "end") {
-                  return (
-                    <span
-                      key={w.code}
-                      className={`mushaf-end-marker ${isVerseHighlighted ? "highlighted" : ""}`}
-                      style={{ fontFamily: `"${w.font}", serif` }}
-                      onClick={() => w.verse_key && onVerseClick?.(w.verse_key)}
-                    >
-                      {w.char}
-                    </span>
-                  );
-                }
+              return (
+                <div
+                  key={line.line}
+                  className={`mushaf-line ${showWordByWord && wordByWordMap.size > 0 ? "wbw-active" : ""} ${isCentered ? "mushaf-line-centered" : ""} ${isSurahHeader ? "mushaf-line-surah-header" : ""}`}
+                >
+                  {line.words.map((word) => {
+                    const isVerseHighlighted = highlightVerseKey !== null && word.verse_key === highlightVerseKey;
+                    const isWordHighlighted = highlightedWordCodes !== null && highlightedWordCodes.has(word.code);
 
-                if (w.type === "surah_header") {
-                  return (
-                    <span key={w.code} className="mushaf-surah-header" style={{ fontFamily: `"${w.font}", serif` }}>
-                      {w.char}
-                    </span>
-                  );
-                }
 
-                if (w.type === "bismillah") {
-                  return (
-                    <span key={w.code} className="mushaf-bsml" style={{ fontFamily: `"${w.font}", serif` }}>
-                      {w.char}
-                    </span>
-                  );
-                }
+                    if (word.type === "end") {
+                      return (
+                        <MadaniAyahMarker
+                          key={word.code}
+                          char={word.char}
+                          verseKey={word.verse_key}
+                          highlighted={isVerseHighlighted}
+                          onClick={() => word.verse_key && onVerseClick?.(word.verse_key)}
+                        />
+                      );
+                    }
 
-                const mlText = w.verse_key ? findWbwMeaning(wbwData, w.verse_key, w.position) : null;
-                const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
+                    if (word.type === "surah_header") {
+                      return (
+                        <MadaniSurahHeader
+                          key={word.code}
+                          char={word.char}
+                          font={word.font}
+                          title={word.text}
+                        />
+                      );
+                    }
 
-                return (
-                  <span
-                    key={w.code}
-                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${isWordTapped ? "word-tapped" : ""}`}
-                    style={{ fontFamily: `"${w.font}", serif` }}
-                    onClick={(e) => {
-                      if (w.verse_key) {
-                        if (mlText) {
-                          setWordPopover({ text: mlText, verseKey: w.verse_key, el: e.currentTarget });
-                          setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
-                          clearTimeout(tappedTimeoutRef.current);
-                          tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
-                        }
-                      }
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      if (w.verse_key) openAyahSheet(w.verse_key);
-                    }}
-                    title={mlText ? `${w.text} — ${mlText}` : w.text}
-                  >
-                    {w.char}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        ))
-        : lines.map((line) => {
-        return (
-          <div key={line.line}>
-            <div className={`mushaf-line ${showWordByWord && wordByWordMap.size > 0 ? "wbw-active" : ""}`}>
-              {line.words.map((word) => {
-                const isVerseHighlighted = highlightVerseKey !== null && word.verse_key === highlightVerseKey;
-                const isWordHighlighted = highlightedWordCode !== null && word.code === highlightedWordCode;
+                    if (word.type === "bismillah") {
+                      return (
+                        <span key={word.code} className="mushaf-bsml" style={{ fontFamily: `"${word.font}", serif` }}>
+                          {word.char}
+                        </span>
+                      );
+                    }
 
-                if (word.type === "end") {
-                  return (
-                    <span
-                      key={word.code}
-                      className={`mushaf-end-marker ${isVerseHighlighted ? "highlighted" : ""}`}
-                      style={{ fontFamily: `"${word.font}", serif` }}
-                      onClick={() => word.verse_key && onVerseClick?.(word.verse_key)}
-                    >
-                      {word.char}
-                    </span>
-                  );
-                }
+                    const mlText = showWordByWord ? wordByWordMap.get(word.code) : undefined;
+                    const mlTooltip = wbwData && word.type === "word" && word.verse_key
+                      ? findWbwMeaning(wbwData, word.verse_key, word.position)
+                      : null;
+                    const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(word.code);
 
-                if (word.type === "surah_header") {
-                  return (
-                    <span key={word.code} className="mushaf-surah-header" style={{ fontFamily: `"${word.font}", serif` }}>
-                      {word.char}
-                    </span>
-                  );
-                }
+                    return (
+                      <span
+                        key={word.code}
+                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${isWordTapped ? "word-tapped" : ""}`}
 
-                if (word.type === "bismillah") {
-                  return (
-                    <span key={word.code} className="mushaf-bsml" style={{ fontFamily: `"${word.font}", serif` }}>
-                      {word.char}
-                    </span>
-                  );
-                }
-
-                const mlText = showWordByWord ? wordByWordMap.get(word.code) : undefined;
-                const mlTooltip = wbwData && word.type === "word" && word.verse_key
-                  ? findWbwMeaning(wbwData, word.verse_key, word.position)
-                  : null;
-                const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(word.code);
-
-                return (
-                  <span
-                    key={word.code}
-                    className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? "word-highlighted" : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${isWordTapped ? "word-tapped" : ""}`}
-                    style={{ fontFamily: `"${word.font}", serif` }}
-                    onClick={(e) => {
-                      if (word.verse_key) {
-                        if (mlTooltip) {
-                          setWordPopover({ text: mlTooltip, verseKey: word.verse_key, el: e.currentTarget });
-                          setTappedWordCodes(findAdjacentGroup(flatWords, word.code, wbwData, wordByWordMap, showWordByWord));
-                          clearTimeout(tappedTimeoutRef.current);
-                          tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
-                        }
-                      }
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      if (word.verse_key) openAyahSheet(word.verse_key);
-                    }}
-                    title={mlTooltip ? `${word.text} — ${mlTooltip}` : word.text}
-                  >
-                    {word.char}
-                    {mlText && <span className="wbw-ml">{mlText}</span>}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                        style={{ fontFamily: `"${word.font}", serif` }}
+                        onClick={(e) => {
+                          if (word.verse_key) {
+                            if (mlTooltip) {
+                              setWordPopover({ text: mlTooltip, verseKey: word.verse_key, el: e.currentTarget });
+                              setTappedWordCodes(findAdjacentGroup(flatWords, word.code, wbwData, wordByWordMap, showWordByWord));
+                              clearTimeout(tappedTimeoutRef.current);
+                              tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
+                            }
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (word.verse_key) openAyahSheet(word.verse_key);
+                        }}
+                        title={mlTooltip ? `${word.text} — ${mlTooltip}` : word.text}
+                      >
+                        {word.char}
+                        {mlText && <span className="wbw-ml">{mlText}</span>}
+                      </span>
+                    );
+                  })}
+                </div>
+              );
+            })}
+        </div>
+      </MadaniFrame>
     </div>
 
-    {ayahSheetContent}
+    {typeof document !== "undefined" && popoverEl ? createPortal(popoverEl, document.body) : null}
+    {typeof document !== "undefined" && ayahSheetContent ? createPortal(ayahSheetContent, document.body) : null}
     </>
   );
 }
+
+const MushafPage = React.memo(MushafPageInner, (prev, next) => {
+  const sameHighlight =
+    prev.highlightWord === next.highlightWord ||
+    (prev.highlightWord?.wordIndex === next.highlightWord?.wordIndex &&
+      prev.highlightWord?.verseKey === next.highlightWord?.verseKey &&
+      prev.highlightWord?.bundle === next.highlightWord?.bundle &&
+      prev.highlightWord?.wordIndices?.join(",") === next.highlightWord?.wordIndices?.join(","));
+
+  return (
+    prev.currentPage === next.currentPage &&
+    prev.isSinglePage === next.isSinglePage &&
+    prev.showTranslation === next.showTranslation &&
+    prev.showWordByWord === next.showWordByWord &&
+    prev.highlightVerseKey === next.highlightVerseKey &&
+    prev.activeAyahSheetKey === next.activeAyahSheetKey &&
+    sameHighlight &&
+    (prev.showTranslation ? prev.translationMap === next.translationMap : true)
+  );
+});
+export default MushafPage;

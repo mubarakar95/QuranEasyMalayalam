@@ -76,3 +76,20 @@ export function findWordAtTime(
   }
   return null;
 }
+
+export function findWordsAtTime(
+  segments: AyahSegments[],
+  verseKey: string,
+  currentTimeMs: number
+): number[] {
+  const ayahSegments = segments.find((s) => s.verseKey === verseKey);
+  if (!ayahSegments) return [];
+
+  const words = new Set<number>();
+  for (const seg of ayahSegments.segments) {
+    if (currentTimeMs >= seg.startMs && currentTimeMs < seg.endMs) {
+      words.add(seg.wordIndex);
+    }
+  }
+  return Array.from(words);
+}
