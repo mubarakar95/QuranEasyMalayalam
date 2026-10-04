@@ -5,13 +5,62 @@ import * as fs from "fs";
 import * as path from "path";
 
 const CANDIDATE_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-3.1-pro",
+  "gemini-flash-latest",
+  "gemini-flash-lite-latest",
   "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
   "gemini-2.0-flash",
   "gemini-2.0-flash-lite",
   "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+  "gemini-1.5-pro",
 ];
 
 let workingModel = CANDIDATE_MODELS[0];
+
+function parseGeminiError(err: unknown): { reason: string; isKeyError: boolean } {
+  if (!(err instanceof Error)) {
+    return { reason: "Unknown error", isKeyError: false };
+  }
+  let message = err.message;
+  try {
+    const json = JSON.parse(err.message);
+    if (json?.error?.message) {
+      message = json.error.message;
+    }
+    const reasonCode = json?.error?.details?.[0]?.reason;
+    if (reasonCode === "API_KEY_INVALID" || message.toLowerCase().includes("api key not valid")) {
+      return { reason: "Invalid Gemini API Key. Please update it in Settings.", isKeyError: true };
+    }
+  } catch {}
+
+  const lower = message.toLowerCase();
+  if (lower.includes("api_key_invalid") || lower.includes("api key not valid")) {
+    return { reason: "Invalid Gemini API Key. Please update it in Settings.", isKeyError: true };
+  }
+  if (lower.includes("429") || lower.includes("quota") || lower.includes("resource_exhausted")) {
+    return { reason: "Quota limit exceeded (429)", isKeyError: false };
+  }
+  if (lower.includes("503") || lower.includes("demand") || lower.includes("unavailable")) {
+    return { reason: "High demand / unavailable (503)", isKeyError: false };
+  }
+  if (lower.includes("404") || lower.includes("not found")) {
+    return { reason: "Not found (404)", isKeyError: false };
+  }
+  if (lower.includes("403") || lower.includes("permission_denied")) {
+    return { reason: "Permission denied (403)", isKeyError: true };
+  }
+
+  return { reason: message.slice(0, 45), isKeyError: false };
+}
 
 const pageAyahsCache = new Map<number, Array<{ surahNumber: number; ayahNumber: number; verseKey: string }>>();
 
@@ -268,6 +317,7 @@ Rules:
   ];
 
   let parsed: Record<string, Array<{ phrase: string; arabicPositions: number[] }>> | null = null;
+  let lastError = "";
 
   for (let i = 0; i < modelsToTry.length; i++) {
     const modelName = modelsToTry[i];
@@ -298,27 +348,23 @@ Rules:
         break;
       }
     } catch (err: unknown) {
-      let reason = "Unavailable";
-      if (err instanceof Error) {
-        const msg = err.message;
-        if (msg.includes("429") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")) {
-          reason = "Quota limit (429)";
-        } else if (msg.includes("503") || msg.includes("demand") || msg.includes("UNAVAILABLE")) {
-          reason = "High demand (503)";
-        } else if (msg.includes("404")) {
-          reason = "Not found (404)";
-        } else {
-          reason = msg.slice(0, 30);
-        }
-      }
+      console.error(`[Gemini ar-ml-alignments Page ${pageNumber}] ${modelName} failed:`, err instanceof Error ? err.message : err);
+      const { reason, isKeyError } = parseGeminiError(err);
+      lastError = reason;
+
       const nextModel = modelsToTry[i + 1];
       onProgress?.({
         type: "model_failed",
         model: modelName,
-        nextModel,
+        nextModel: isKeyError ? undefined : nextModel,
         error: reason,
-        message: `${modelName} ${reason}${nextModel ? `, switching to ${nextModel}...` : ""}`,
+        message: `${modelName}: ${reason}${!isKeyError && nextModel ? `, switching to ${nextModel}...` : ""}`,
       });
+
+      // If the API key is invalid or unauthorized, stop immediately rather than failing all models
+      if (isKeyError) {
+        break;
+      }
     }
   }
 
@@ -373,7 +419,9 @@ Rules:
   const fallbackRes = { alignments, source: "partial_cache" };
   onProgress?.({
     type: "error",
-    message: "All candidate Gemini models failed. Showing partial cache.",
+    message: lastError
+      ? `All candidate Gemini models failed (${lastError}). Showing partial cache.`
+      : "All candidate Gemini models failed. Showing partial cache.",
     alignments,
   });
   return fallbackRes;
