@@ -879,6 +879,55 @@ body {
   padding: 0.1rem 0.35rem !important;
 }
 
+/* ── Arabic live audio highlight for WBW groups & Malayalam pills ────────── */
+.wbw-group.wbw-group-ar-highlighted {
+  background: rgba(197, 155, 39, 0.16) !important;
+  border-color: rgba(197, 155, 39, 0.5) !important;
+  box-shadow: 0 0 0 1.5px rgba(197, 155, 39, 0.35) !important;
+  border-radius: 0.375rem !important;
+}
+
+.wbw-group.wbw-group-ar-highlighted .wbw-ml,
+.mushaf-word.word-highlighted .wbw-ml {
+  color: #854d0e !important;
+  font-weight: 700 !important;
+  background: rgba(197, 155, 39, 0.24) !important;
+  border-radius: 0.25rem !important;
+  padding: 0.1rem 0.35rem !important;
+}
+
+.dark .wbw-group.wbw-group-ar-highlighted {
+  background: rgba(234, 179, 8, 0.22) !important;
+  border-color: rgba(234, 179, 8, 0.55) !important;
+  box-shadow: 0 0 0 1.5px rgba(234, 179, 8, 0.45) !important;
+  border-radius: 0.375rem !important;
+}
+
+.dark .wbw-group.wbw-group-ar-highlighted .wbw-ml,
+.dark .mushaf-word.word-highlighted .wbw-ml {
+  color: #fef08a !important;
+  font-weight: 700 !important;
+  background: rgba(234, 179, 8, 0.32) !important;
+  border-radius: 0.25rem !important;
+  padding: 0.1rem 0.35rem !important;
+}
+
+.creme .wbw-group.wbw-group-ar-highlighted {
+  background: rgba(180, 130, 25, 0.14) !important;
+  border-color: rgba(180, 130, 25, 0.45) !important;
+  box-shadow: 0 0 0 1.5px rgba(180, 130, 25, 0.35) !important;
+  border-radius: 0.375rem !important;
+}
+
+.creme .wbw-group.wbw-group-ar-highlighted .wbw-ml,
+.creme .mushaf-word.word-highlighted .wbw-ml {
+  color: #713f12 !important;
+  font-weight: 700 !important;
+  background: rgba(180, 130, 25, 0.2) !important;
+  border-radius: 0.25rem !important;
+  padding: 0.1rem 0.35rem !important;
+}
+
 
 /* Special Page (Page 1 & Page 2) — centered layout */
 .madani-slot-area .mushaf-container.special-page {
@@ -1702,6 +1751,68 @@ body {
   border-bottom: none;
 }
 
+.swipe-word-row.swipe-word-row-active {
+  background: rgba(234, 179, 8, 0.16) !important;
+  border-radius: 0.375rem;
+  box-shadow: 0 0 0 1.5px rgba(234, 179, 8, 0.5) !important;
+}
+
+.swipe-word-row.swipe-word-row-active .swipe-ml {
+  color: #854d0e !important;
+  font-weight: 700;
+}
+
+.swipe-word-row.swipe-word-row-active .swipe-arabic {
+  color: #92400e !important;
+  font-weight: 700;
+}
+
+.dark .swipe-word-row.swipe-word-row-active {
+  background: rgba(234, 179, 8, 0.25) !important;
+  box-shadow: 0 0 0 1.5px rgba(250, 204, 21, 0.6) !important;
+}
+
+.dark .swipe-word-row.swipe-word-row-active .swipe-ml {
+  color: #fde047 !important;
+  font-weight: 700;
+}
+
+.dark .swipe-word-row.swipe-word-row-active .swipe-arabic {
+  color: #fef08a !important;
+  font-weight: 700;
+}
+
+.swipe-word-row.swipe-word-row-active-ml {
+  background: rgba(59, 130, 246, 0.14) !important;
+  border-radius: 0.375rem;
+  box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.4) !important;
+}
+
+.swipe-word-row.swipe-word-row-active-ml .swipe-ml {
+  color: #1d4ed8 !important;
+  font-weight: 700;
+}
+
+.swipe-word-row.swipe-word-row-active-ml .swipe-arabic {
+  color: #1e40af !important;
+  font-weight: 700;
+}
+
+.dark .swipe-word-row.swipe-word-row-active-ml {
+  background: rgba(59, 130, 246, 0.25) !important;
+  box-shadow: 0 0 0 1.5px rgba(96, 165, 250, 0.5) !important;
+}
+
+.dark .swipe-word-row.swipe-word-row-active-ml .swipe-ml {
+  color: #93c5fd !important;
+  font-weight: 700;
+}
+
+.dark .swipe-word-row.swipe-word-row-active-ml .swipe-arabic {
+  color: #bfdbfe !important;
+  font-weight: 700;
+}
+
 .swipe-ml-wrap {
   display: flex;
   align-items: baseline;
@@ -2192,6 +2303,36 @@ body {
 
 .dark .ayah-sheet-word-row.ayah-sheet-row-active .ayah-sheet-arabic {
   color: #bfdbfe !important;
+  font-weight: bold;
+}
+
+.ayah-sheet-word-row.ayah-sheet-row-active-ar {
+  background: rgba(234, 179, 8, 0.18) !important;
+  box-shadow: 0 0 0 1.5px rgba(234, 179, 8, 0.5) !important;
+}
+
+.ayah-sheet-word-row.ayah-sheet-row-active-ar .ayah-sheet-ml {
+  color: #854d0e !important;
+  font-weight: 700;
+}
+
+.ayah-sheet-word-row.ayah-sheet-row-active-ar .ayah-sheet-arabic {
+  color: #92400e !important;
+  font-weight: bold;
+}
+
+.dark .ayah-sheet-word-row.ayah-sheet-row-active-ar {
+  background: rgba(234, 179, 8, 0.25) !important;
+  box-shadow: 0 0 0 1.5px rgba(250, 204, 21, 0.6) !important;
+}
+
+.dark .ayah-sheet-word-row.ayah-sheet-row-active-ar .ayah-sheet-ml {
+  color: #fde047 !important;
+  font-weight: 700;
+}
+
+.dark .ayah-sheet-word-row.ayah-sheet-row-active-ar .ayah-sheet-arabic {
+  color: #fef08a !important;
   font-weight: bold;
 }
 

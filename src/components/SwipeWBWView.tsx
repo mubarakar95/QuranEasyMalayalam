@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { AyahInfo } from "@/lib/types";
+import { AyahInfo, HighlightWord } from "@/lib/types";
 import { fetchMalayalamWBW } from "@/lib/malayalam-wbw";
 import { loadPageFont, fetchPageData, PageLine } from "@/lib/qcf4";
 
@@ -12,11 +12,14 @@ interface SwipeWBWViewProps {
   currentAyahIndex: number;
   onAyahIndexChange: (index: number) => void;
   translationMap?: Map<string, string> | null;
+  highlightVerseKey?: string | null;
+  highlightWord?: HighlightWord | null;
 }
 
 interface WordGroup {
   arabicWords: string[];
   meaning: string | null;
+  wordIndices: number[];
 }
 
 // Quranic pause/annotation marks (ۣۖۗۘۙۚۛۜ۟۠ۡۢۤۥۦۧۨ۩۪ۭ۫۬)
@@ -28,34 +31,36 @@ function groupAyahWords(arabicText: string, meanings: string[]): WordGroup[] {
   const groups: WordGroup[] = [];
   let meaningIdx = 0;
 
-  for (const token of tokens) {
+  tokens.forEach((token, tokenIdx) => {
     // Skip Quranic annotation marks — they don't correspond to a meaning slot
     if (QURAN_ANNOTATION.test(token)) {
       if (groups.length > 0) {
         groups[groups.length - 1].arabicWords.push(token);
+        groups[groups.length - 1].wordIndices.push(tokenIdx);
       } else {
-        groups.push({ arabicWords: [token], meaning: null });
+        groups.push({ arabicWords: [token], meaning: null, wordIndices: [tokenIdx] });
       }
-      continue;
+      return;
     }
 
     const meaning = meaningIdx < meanings.length ? meanings[meaningIdx] : null;
     meaningIdx++;
 
     if (meaning) {
-      groups.push({ arabicWords: [token], meaning });
+      groups.push({ arabicWords: [token], meaning, wordIndices: [tokenIdx] });
     } else {
       if (groups.length > 0) {
         groups[groups.length - 1].arabicWords.push(token);
+        groups[groups.length - 1].wordIndices.push(tokenIdx);
       } else {
-        groups.push({ arabicWords: [token], meaning: null });
+        groups.push({ arabicWords: [token], meaning: null, wordIndices: [tokenIdx] });
       }
     }
-  }
+  });
   return groups;
 }
 
-export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAyahIndex, onAyahIndexChange, translationMap }: SwipeWBWViewProps) {
+export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAyahIndex, onAyahIndexChange, translationMap, highlightVerseKey, highlightWord }: SwipeWBWViewProps) {
   const [wbwData, setWbwData] = useState<Record<string, string[]> | null>(null);
   const [prevIndex, setPrevIndex] = useState<number | null>(null);
   const [slideDir, setSlideDir] = useState<"next" | "prev">("next");
@@ -244,38 +249,77 @@ export default function SwipeWBWView({ ayahs, currentPage, mlFontSize, currentAy
     return (
       <div className={`swipe-ayah-card ${isSingle ? "swipe-ayah-card-prev" : ""}`}>
         {fullTranslation && (
-          <div className="swipe-full-translation" dir="ltr">
+          <div className="swipe-full-translation leading-relaxed" dir="ltr">
             <span className="swipe-ayah-verse-num">{aVK}</span>
-            {fullTranslation}
+            {(() => {
+              if (!groupsArr || groupsArr.length === 0) return fullTranslation;
+              const mlTokens = fullTranslation.trim().split(/\s+/).filter(Boolean);
+              if (mlTokens.length === 0) return fullTranslation;
+              const tokensPerGroup = mlTokens.length / groupsArr.length;
+              let startIdx = 0;
+              return groupsArr.map((grp, gIdx) => {
+                const endIdx = gIdx === groupsArr.length - 1 ? mlTokens.length : Math.round((gIdx + 1) * tokensPerGroup);
+                const chunk = mlTokens.slice(startIdx, endIdx).join(" ");
+                startIdx = endIdx;
+                const isGrpActive = highlightVerseKey === aVK && highlightWord?.verseKey === aVK && (
+                  (highlightWord.wordIndices && highlightWord.wordIndices.some((idx) => grp.wordIndices.includes(idx))) ||
+                  grp.wordIndices.includes(highlightWord.wordIndex)
+                );
+                return (
+                  <span
+                    key={gIdx}
+                    className={`transition-colors duration-150 rounded px-1 py-0.5 mx-0.5 inline-block ${
+                      isGrpActive
+                        ? (highlightWord?.bundle
+                            ? "bg-blue-500/25 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-blue-500/50"
+                            : "bg-amber-400/35 text-amber-950 dark:text-amber-100 font-semibold ring-1 ring-amber-500/60")
+                        : ""
+                    }`}
+                  >
+                    {chunk}{" "}
+                  </span>
+                );
+              });
+            })()}
           </div>
         )}
         {groupsArr ? (
-          groupsArr.map((group, gi) => (
-            <div key={gi} className="swipe-word-row">
-              <div className="swipe-ml-wrap" style={{ fontSize: `${mlFontSize}%` }}>
-                {group.meaning ? (
-                  <button
-                    className="swipe-speaker"
-                    onPointerDown={(e) => speakMalayalam(e, group.meaning!)}
-                    aria-label="Speak meaning"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
-                    </svg>
-                  </button>
-                ) : (
-                  <span className="swipe-speaker-placeholder" />
-                )}
-                <span className="swipe-ml">
-                  {group.meaning || ""}
+          groupsArr.map((group, gi) => {
+            const isGrpActive = highlightVerseKey === aVK && highlightWord?.verseKey === aVK && (
+              (highlightWord.wordIndices && highlightWord.wordIndices.some((idx) => group.wordIndices.includes(idx))) ||
+              group.wordIndices.includes(highlightWord.wordIndex)
+            );
+            const activeRowClass = isGrpActive
+              ? (highlightWord?.bundle ? "swipe-word-row-active-ml" : "swipe-word-row-active")
+              : "";
+
+            return (
+              <div key={gi} className={`swipe-word-row ${activeRowClass}`}>
+                <div className="swipe-ml-wrap" style={{ fontSize: `${mlFontSize}%` }}>
+                  {group.meaning ? (
+                    <button
+                      className="swipe-speaker"
+                      onPointerDown={(e) => speakMalayalam(e, group.meaning!)}
+                      aria-label="Speak meaning"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <span className="swipe-speaker-placeholder" />
+                  )}
+                  <span className="swipe-ml">
+                    {group.meaning || ""}
+                  </span>
+                </div>
+                <span className="swipe-col-divider" />
+                <span className="swipe-arabic" dir="rtl">
+                  {group.arabicWords.join(" ")}
                 </span>
               </div>
-              <span className="swipe-col-divider" />
-              <span className="swipe-arabic" dir="rtl">
-                {group.arabicWords.join(" ")}
-              </span>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="swipe-word-row">
             <span className="swipe-ml" />

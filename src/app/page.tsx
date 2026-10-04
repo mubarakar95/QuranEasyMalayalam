@@ -466,6 +466,8 @@ export default function Home() {
               currentAyahIndex={currentAyahIndex}
               onAyahIndexChange={setCurrentAyahIndex}
               translationMap={translationMap}
+              highlightVerseKey={highlightVerseKey}
+              highlightWord={highlightWord}
             />
           </div>
           {!showSwipeWBW && (

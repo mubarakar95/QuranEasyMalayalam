@@ -714,56 +714,100 @@ function MushafPageInner({
                 </button>
               </div>
             </div>
-            {translation ? (
-              <div className="ayah-sheet-translation leading-relaxed" dir="ltr">
-                {ayahAlignments[vk] && ayahAlignments[vk].length > 0 ? (
-                  ayahAlignments[vk].map((item, idx) => {
-                    const positions = Array.isArray(item.arabicPositions) ? item.arabicPositions : [];
-                    const activeWordPositions = new Set<number>();
-                    if (highlightWord && highlightWord.verseKey === vk) {
-                      if (highlightWord.wordIndices && highlightWord.wordIndices.length > 0) {
-                        for (const wIdx of highlightWord.wordIndices) activeWordPositions.add(wIdx + 1);
-                      } else {
-                        activeWordPositions.add(highlightWord.wordIndex + 1);
-                      }
+            {(() => {
+              const effectiveAlignments: { phrase: string; arabicPositions: number[] }[] = (() => {
+                if (ayahAlignments[vk] && ayahAlignments[vk].length > 0) {
+                  return ayahAlignments[vk];
+                }
+                if (!translation || words.length === 0) return [];
+                const mlTokens = translation.trim().split(/\s+/).filter(Boolean);
+                if (mlTokens.length === 0) return [];
+                const result: { phrase: string; arabicPositions: number[] }[] = [];
+                if (sheetGroups.length > 0) {
+                  const tokensPerGroup = mlTokens.length / sheetGroups.length;
+                  let startIdx = 0;
+                  sheetGroups.forEach((g, gIdx) => {
+                    const endIdx = gIdx === sheetGroups.length - 1 ? mlTokens.length : Math.round((gIdx + 1) * tokensPerGroup);
+                    const chunk = mlTokens.slice(startIdx, endIdx).join(" ");
+                    startIdx = endIdx;
+                    if (chunk) {
+                      result.push({
+                        phrase: chunk,
+                        arabicPositions: g.words.map((w) => w.position),
+                      });
                     }
-                    const isPosActive = (pos: number) => {
-                      if (activeWordPositions.has(pos)) return true;
-                      if (sheetSelectedPositions !== null && sheetSelectedPositions.has(pos)) return true;
-                      return false;
-                    };
-                    const isPhraseActive = positions.some((pos) => isPosActive(pos));
+                  });
+                } else {
+                  const tokensPerWord = mlTokens.length / words.length;
+                  let startIdx = 0;
+                  words.forEach((w, wIdx) => {
+                    const endIdx = wIdx === words.length - 1 ? mlTokens.length : Math.round((wIdx + 1) * tokensPerWord);
+                    const chunk = mlTokens.slice(startIdx, endIdx).join(" ");
+                    startIdx = endIdx;
+                    if (chunk) {
+                      result.push({
+                        phrase: chunk,
+                        arabicPositions: [w.position],
+                      });
+                    }
+                  });
+                }
+                return result;
+              })();
 
-                    return (
-                      <span
-                        key={idx}
-                        onClick={() => {
-                          if (positions.length === 0) return;
-                          setSheetSelectedPositions((prev) => {
-                            if (prev && positions.every((pos) => prev.has(pos))) {
-                              return null;
-                            }
-                            return new Set(positions);
-                          });
-                        }}
-                        className={`transition-all duration-150 rounded px-1.5 py-0.5 mx-0.5 inline-block cursor-pointer ${
-                          isPhraseActive
-                            ? "bg-amber-400/35 text-amber-950 dark:text-amber-100 font-semibold ring-1 ring-amber-500/60 shadow-sm"
-                            : "hover:bg-amber-500/10 text-[var(--foreground)]"
-                        }`}
-                        title="Click to highlight corresponding Arabic words"
-                      >
-                        {item.phrase}
-                      </span>
-                    );
-                  })
-                ) : (
-                  translation
-                )}
-              </div>
-            ) : (
-              <div className="ayah-sheet-translation text-[var(--muted)] text-xs italic py-1 animate-pulse" dir="ltr">വിവർത്തനം ലഭ്യമാക്കുന്നു...</div>
-            )}
+              return translation ? (
+                <div className="ayah-sheet-translation leading-relaxed" dir="ltr">
+                  {effectiveAlignments.length > 0 ? (
+                    effectiveAlignments.map((item, idx) => {
+                      const positions = Array.isArray(item.arabicPositions) ? item.arabicPositions : [];
+                      const activeWordPositions = new Set<number>();
+                      if (highlightWord && highlightWord.verseKey === vk) {
+                        if (highlightWord.wordIndices && highlightWord.wordIndices.length > 0) {
+                          for (const wIdx of highlightWord.wordIndices) activeWordPositions.add(wIdx + 1);
+                        } else {
+                          activeWordPositions.add(highlightWord.wordIndex + 1);
+                        }
+                      }
+                      const isPosActive = (pos: number) => {
+                        if (activeWordPositions.has(pos)) return true;
+                        if (sheetSelectedPositions !== null && sheetSelectedPositions.has(pos)) return true;
+                        return false;
+                      };
+                      const isPhraseActive = positions.some((pos) => isPosActive(pos));
+
+                      return (
+                        <span
+                          key={idx}
+                          onClick={() => {
+                            if (positions.length === 0) return;
+                            setSheetSelectedPositions((prev) => {
+                              if (prev && positions.every((pos) => prev.has(pos))) {
+                                return null;
+                              }
+                              return new Set(positions);
+                            });
+                          }}
+                          className={`transition-all duration-150 rounded px-1.5 py-0.5 mx-0.5 inline-block cursor-pointer ${
+                            isPhraseActive
+                              ? (highlightWord?.bundle
+                                  ? "bg-blue-500/25 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-blue-500/50 shadow-sm"
+                                  : "bg-amber-400/35 text-amber-950 dark:text-amber-100 font-semibold ring-1 ring-amber-500/60 shadow-sm")
+                              : "hover:bg-amber-500/10 text-[var(--foreground)]"
+                          }`}
+                          title="Click to highlight corresponding Arabic words"
+                        >
+                          {item.phrase}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    translation
+                  )}
+                </div>
+              ) : (
+                <div className="ayah-sheet-translation text-[var(--muted)] text-xs italic py-1 animate-pulse" dir="ltr">വിവർത്തനം ലഭ്യമാക്കുന്നു...</div>
+              );
+            })()}
             <div className="ayah-sheet-divider" />
             <div className="ayah-sheet-words">
               {sheetGroups.map((g, i) => {
@@ -783,6 +827,9 @@ function MushafPageInner({
                 };
                 const wordPositions = g.words.map((w) => w.position);
                 const isRowActive = wordPositions.some((pos) => isPosActive(pos));
+                const rowActiveClass = isRowActive
+                  ? (highlightWord?.bundle ? "ayah-sheet-row-active" : "ayah-sheet-row-active-ar")
+                  : "";
 
                 return (
                   <div
@@ -796,7 +843,7 @@ function MushafPageInner({
                         return new Set(wordPositions);
                       });
                     }}
-                    className={`ayah-sheet-word-row cursor-pointer ${isRowActive ? "ayah-sheet-row-active" : ""}`}
+                    className={`ayah-sheet-word-row cursor-pointer ${rowActiveClass}`}
                     title="Click to highlight corresponding Malayalam phrase"
                   >
                     <span className="ayah-sheet-ml">{groupMl || ""}</span>
@@ -877,12 +924,15 @@ function MushafPageInner({
                   {line.groups.map((group) => {
                     if (group.mlText) {
                         const isGroupTapped = tappedWordCodes !== null && group.words.some((w) => tappedWordCodes.has(w.code));
-                        const isGroupMlHighlighted =
+                        const isGroupActive =
                           highlightedWordCodes !== null &&
                           group.words.some((w) => highlightedWordCodes.has(w.code));
+                        const groupHClass = isGroupActive
+                          ? (highlightWord?.bundle ? "wbw-group-ml-highlighted" : "wbw-group-ar-highlighted")
+                          : "";
 
                         return (
-                        <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""} ${isGroupMlHighlighted ? "wbw-group-ml-highlighted" : ""}`}>
+                        <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""} ${groupHClass}`}>
                           <span className="wbw-words-row">
                             {group.words.map((w) => {
                               const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;

@@ -4400,5 +4400,876 @@
         28
       ]
     }
+  ],
+  "6:28": [
+    {
+      "phrase": "എന്നാല്‍, ",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "അവര്‍ നേരത്തെ മറച്ചുവെച്ചിരുന്നത് ",
+      "arabicPositions": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "phrase": "അവര്‍ക്കിപ്പോള്‍ വെളിപ്പെട്ടിരിക്കുകയാണ്. ",
+      "arabicPositions": [
+        2,
+        3
+      ]
+    },
+    {
+      "phrase": "അവരെ ഭൂമിയിലേക്കു മടക്കിയയച്ചാലും ",
+      "arabicPositions": [
+        9,
+        10
+      ]
+    },
+    {
+      "phrase": "വിലക്കപ്പെട്ട കാര്യങ്ങളിലേക്കുതന്നെ ",
+      "arabicPositions": [
+        12,
+        13,
+        14
+      ]
+    },
+    {
+      "phrase": "അവര്‍ തിരിച്ചുചെല്ലും. ",
+      "arabicPositions": [
+        11
+      ]
+    },
+    {
+      "phrase": "അവര്‍ കള്ളം പറയുന്നവരാണ്; തീര്‍ച്ച.",
+      "arabicPositions": [
+        15,
+        16
+      ]
+    }
+  ],
+  "6:29": [
+    {
+      "phrase": "അവര്‍ പറഞ്ഞുകൊണ്ടിരിക്കുന്നു: \"",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "നമ്മുടെ ഈ ഐഹിക ജീവിതമല്ലാതെ വേറൊരു ജീവിതമില്ല. ",
+      "arabicPositions": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "phrase": "നാമൊരിക്കലും ",
+      "arabicPositions": [
+        8
+      ]
+    },
+    {
+      "phrase": "ഉയിര്‍ത്തെഴുന്നേല്‍ക്കുകയില്ല.”",
+      "arabicPositions": [
+        7,
+        9
+      ]
+    }
+  ],
+  "6:30": [
+    {
+      "phrase": "അവര്‍ തങ്ങളുടെ നാഥന്റെ മുമ്പില്‍ നിര്‍ത്തപ്പെടുന്ന രംഗം ",
+      "arabicPositions": [
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "phrase": "നീ കണ്ടിരുന്നെങ്കില്‍! ",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    },
+    {
+      "phrase": "അപ്പോള്‍ അവന്‍ അവരോടു ചോദിക്കും: \"",
+      "arabicPositions": [
+        7
+      ]
+    },
+    {
+      "phrase": "ഇത് ",
+      "arabicPositions": [
+        9
+      ]
+    },
+    {
+      "phrase": "യഥാര്‍ഥം തന്നെയല്ലേ?” ",
+      "arabicPositions": [
+        8,
+        10
+      ]
+    },
+    {
+      "phrase": "അവര്‍ പറയും: \"",
+      "arabicPositions": [
+        11
+      ]
+    },
+    {
+      "phrase": "അതെ; ",
+      "arabicPositions": [
+        12
+      ]
+    },
+    {
+      "phrase": "ഞങ്ങളുടെ നാഥന്‍ തന്നെ സത്യം!” ",
+      "arabicPositions": [
+        13
+      ]
+    },
+    {
+      "phrase": "അവന്‍ പറയും: \"",
+      "arabicPositions": [
+        14
+      ]
+    },
+    {
+      "phrase": "എങ്കില്‍ നിങ്ങള്‍ സത്യത്തെ തള്ളിപ്പറഞ്ഞതിനുള്ള ശിക്ഷ അനുഭവിച്ചുകൊള്ളുക.”",
+      "arabicPositions": [
+        15,
+        16,
+        17,
+        18,
+        19
+      ]
+    }
+  ],
+  "6:31": [
+    {
+      "phrase": "അല്ലാഹുവുമായി കണ്ടുമുട്ടുമെന്ന കാര്യം ",
+      "arabicPositions": [
+        5,
+        6
+      ]
+    },
+    {
+      "phrase": "കള്ളമാക്കിത്തള്ളിയവര്‍ ",
+      "arabicPositions": [
+        3,
+        4
+      ]
+    },
+    {
+      "phrase": "തീര്‍ച്ചയായും തുലഞ്ഞതുതന്നെ. ",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    },
+    {
+      "phrase": "അങ്ങനെ ",
+      "arabicPositions": [
+        7
+      ]
+    },
+    {
+      "phrase": "പെട്ടെന്ന് ",
+      "arabicPositions": [
+        11
+      ]
+    },
+    {
+      "phrase": "അവര്‍ക്ക് ആ സമയം വന്നെത്തുമ്പോള്‍ ",
+      "arabicPositions": [
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "phrase": "അവര്‍ വിലപിക്കും: \"",
+      "arabicPositions": [
+        12
+      ]
+    },
+    {
+      "phrase": "കഷ്ടം! ",
+      "arabicPositions": [
+        13
+      ]
+    },
+    {
+      "phrase": "ഐഹികജീവിതത്തില്‍ ",
+      "arabicPositions": [
+        17
+      ]
+    },
+    {
+      "phrase": "എന്തൊരു വീഴ്ചയാണ് നാം കാണിച്ചത്.” ",
+      "arabicPositions": [
+        14,
+        15,
+        16
+      ]
+    },
+    {
+      "phrase": "അപ്പോഴവര്‍ ",
+      "arabicPositions": [
+        18
+      ]
+    },
+    {
+      "phrase": "തങ്ങളുടെ പാപഭാരം ",
+      "arabicPositions": [
+        20
+      ]
+    },
+    {
+      "phrase": "സ്വന്തം മുതുകുകളില്‍ ",
+      "arabicPositions": [
+        21,
+        22
+      ]
+    },
+    {
+      "phrase": "വഹിക്കുന്നവരായിരിക്കും. ",
+      "arabicPositions": [
+        19
+      ]
+    },
+    {
+      "phrase": "അവര്‍ പേറുന്ന ഭാരം ",
+      "arabicPositions": [
+        25,
+        26
+      ]
+    },
+    {
+      "phrase": "എത്ര ചീത്ത.",
+      "arabicPositions": [
+        23,
+        24
+      ]
+    }
+  ],
+  "6:32": [
+    {
+      "phrase": "ഐഹികജീവിതമെന്നത് ",
+      "arabicPositions": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "phrase": "കളിതമാശയല്ലാതൊന്നുമല്ല. ",
+      "arabicPositions": [
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "phrase": "ഭക്തിപുലര്‍ത്തുന്നവര്‍ക്ക് ",
+      "arabicPositions": [
+        10,
+        11
+      ]
+    },
+    {
+      "phrase": "ഉത്തമം ",
+      "arabicPositions": [
+        9
+      ]
+    },
+    {
+      "phrase": "പരലോകമാണ്. ",
+      "arabicPositions": [
+        7,
+        8
+      ]
+    },
+    {
+      "phrase": "നിങ്ങള്‍ ആലോചിച്ചറിയുന്നില്ലേ?",
+      "arabicPositions": [
+        12,
+        13
+      ]
+    }
+  ],
+  "6:33": [
+    {
+      "phrase": "തീര്‍ച്ചയായും ",
+      "arabicPositions": [
+        1,
+        3
+      ]
+    },
+    {
+      "phrase": "അവര്‍ പറഞ്ഞുകൊണ്ടിരിക്കുന്നത് ",
+      "arabicPositions": [
+        5,
+        6
+      ]
+    },
+    {
+      "phrase": "നിന്നെ ദുഃഖിപ്പിക്കുന്നുണ്ടെന്ന് ",
+      "arabicPositions": [
+        4
+      ]
+    },
+    {
+      "phrase": "നാമറിയുന്നു. ",
+      "arabicPositions": [
+        2
+      ]
+    },
+    {
+      "phrase": "യഥാര്‍ഥത്തില്‍ അവര്‍ ",
+      "arabicPositions": [
+        7
+      ]
+    },
+    {
+      "phrase": "തള്ളിപ്പറയുന്നത് നിന്നെയല്ല. ",
+      "arabicPositions": [
+        8,
+        9
+      ]
+    },
+    {
+      "phrase": "മറിച്ച് ",
+      "arabicPositions": [
+        10
+      ]
+    },
+    {
+      "phrase": "ആ അക്രമികള്‍ ",
+      "arabicPositions": [
+        11
+      ]
+    },
+    {
+      "phrase": "തള്ളിപ്പറഞ്ഞുകൊണ്ടിരിക്കുന്നത് ",
+      "arabicPositions": [
+        14
+      ]
+    },
+    {
+      "phrase": "അല്ലാഹുവിന്റെ വചനങ്ങളെയാണ്.",
+      "arabicPositions": [
+        12,
+        13
+      ]
+    }
+  ],
+  "6:34": [
+    {
+      "phrase": "നിനക്കുമുമ്പും ",
+      "arabicPositions": [
+        4,
+        5
+      ]
+    },
+    {
+      "phrase": "നിരവധി ദൈവദൂതന്മാരെ ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "അവരുടെ ജനം തള്ളിപ്പറഞ്ഞിട്ടുണ്ട്. ",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    },
+    {
+      "phrase": "എന്നാല്‍ ",
+      "arabicPositions": [
+        6
+      ]
+    },
+    {
+      "phrase": "നമ്മുടെ സഹായം വന്നെത്തുംവരെ ",
+      "arabicPositions": [
+        11,
+        12,
+        13
+      ]
+    },
+    {
+      "phrase": "തങ്ങളെ തള്ളിപ്പറഞ്ഞതും ",
+      "arabicPositions": [
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "phrase": "പീഡിപ്പിച്ചതുമൊക്കെ ",
+      "arabicPositions": [
+        10
+      ]
+    },
+    {
+      "phrase": "അവര്‍ ക്ഷമിക്കുകയായിരുന്നു. ",
+      "arabicPositions": [
+        6
+      ]
+    },
+    {
+      "phrase": "അല്ലാഹുവിന്റെ വചനങ്ങളെ ",
+      "arabicPositions": [
+        16,
+        17
+      ]
+    },
+    {
+      "phrase": "മാറ്റിമറിക്കാന്‍ പോരുന്ന ആരുമില്ല. ",
+      "arabicPositions": [
+        14,
+        15
+      ]
+    },
+    {
+      "phrase": "ദൈവദൂതന്മാരുടെ കഥകളില്‍ ",
+      "arabicPositions": [
+        20,
+        21,
+        22
+      ]
+    },
+    {
+      "phrase": "ചിലതൊക്കെ നിനക്കു വന്നുകിട്ടിയിട്ടുണ്ടല്ലോ.",
+      "arabicPositions": [
+        18,
+        19
+      ]
+    }
+  ],
+  "6:35": [
+    {
+      "phrase": "എന്നിട്ടും ",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "ഈ ജനത്തിന്റെ അവഗണന ",
+      "arabicPositions": [
+        5
+      ]
+    },
+    {
+      "phrase": "നിനക്ക് അസഹ്യമാകുന്നുവെങ്കില്‍ ",
+      "arabicPositions": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "phrase": "ഭൂമിയില്‍ ",
+      "arabicPositions": [
+        11,
+        12
+      ]
+    },
+    {
+      "phrase": "ഒരു തുരങ്കമുണ്ടാക്കിയോ ",
+      "arabicPositions": [
+        10
+      ]
+    },
+    {
+      "phrase": "ആകാശത്തേക്ക് ",
+      "arabicPositions": [
+        15,
+        16
+      ]
+    },
+    {
+      "phrase": "കോണിവെച്ചോ ",
+      "arabicPositions": [
+        13,
+        14
+      ]
+    },
+    {
+      "phrase": "അവര്‍ക്ക് എന്തെങ്കിലും ദൃഷ്ടാന്തം എത്തിച്ചുകൊടുക്കാന്‍ ",
+      "arabicPositions": [
+        17,
+        18
+      ]
+    },
+    {
+      "phrase": "നിനക്ക് കഴിയുമെങ്കില്‍ അങ്ങനെ ചെയ്തുകൊള്ളുക. ",
+      "arabicPositions": [
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "phrase": "അല്ലാഹു ",
+      "arabicPositions": [
+        21
+      ]
+    },
+    {
+      "phrase": "ഇച്ഛിച്ചിരുന്നെങ്കില്‍ ",
+      "arabicPositions": [
+        19,
+        20
+      ]
+    },
+    {
+      "phrase": "അവരെയൊക്കെ അവന്‍ സന്മാര്‍ഗത്തില്‍ ഒരുമിച്ചുകൂട്ടുമായിരുന്നു. ",
+      "arabicPositions": [
+        22,
+        23,
+        24
+      ]
+    },
+    {
+      "phrase": "അതിനാല്‍ നീ ഒരിക്കലും ",
+      "arabicPositions": [
+        25,
+        26
+      ]
+    },
+    {
+      "phrase": "അവിവേകികളുടെ കൂട്ടത്തില്‍ പെട്ടുപോകരുത്.",
+      "arabicPositions": [
+        27,
+        28
+      ]
+    }
+  ],
+  "112:1": [
+    {
+      "phrase": "പറയുക, ",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "അവനാണ് ",
+      "arabicPositions": [
+        2
+      ]
+    },
+    {
+      "phrase": "അല്ലാഹു. ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "അവന്‍ ഏകനാണ്.",
+      "arabicPositions": [
+        4
+      ]
+    }
+  ],
+  "112:2": [
+    {
+      "phrase": "അല്ലാഹു ",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "ആരെയും ആശ്രയിക്കാത്തവനാണ്. ഏവരാലും ആശ്രയിക്കപ്പെടുന്നവനും.",
+      "arabicPositions": [
+        2
+      ]
+    }
+  ],
+  "112:3": [
+    {
+      "phrase": "അവന്‍ ",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    },
+    {
+      "phrase": "പിതാവോ ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "പുത്രനോ അല്ല.",
+      "arabicPositions": [
+        4
+      ]
+    }
+  ],
+  "112:4": [
+    {
+      "phrase": "അവനു ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "തുല്യനായി ",
+      "arabicPositions": [
+        4
+      ]
+    },
+    {
+      "phrase": "ആരുമില്ല.",
+      "arabicPositions": [
+        1,
+        2,
+        5
+      ]
+    }
+  ],
+  "113:1": [
+    {
+      "phrase": "പറയുക: ",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "പ്രഭാതത്തിന്റെ ",
+      "arabicPositions": [
+        3,
+        4
+      ]
+    },
+    {
+      "phrase": "നാഥനോട് ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "ഞാന്‍ ",
+      "arabicPositions": [
+        2
+      ]
+    },
+    {
+      "phrase": "ശരണം തേടുന്നു.",
+      "arabicPositions": [
+        2
+      ]
+    }
+  ],
+  "113:2": [
+    {
+      "phrase": "അവന്‍ സൃഷ്ടിച്ചവയുടെ ",
+      "arabicPositions": [
+        3,
+        4
+      ]
+    },
+    {
+      "phrase": "ദ്രോഹത്തില്‍നിന്ന്.",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    }
+  ],
+  "113:3": [
+    {
+      "phrase": "ഇരുള്‍ മൂടുമ്പോഴത്തെ ",
+      "arabicPositions": [
+        4,
+        5
+      ]
+    },
+    {
+      "phrase": "രാവിന്റെ ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "ദ്രോഹത്തില്‍നിന്ന്.",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    }
+  ],
+  "113:4": [
+    {
+      "phrase": "കെട്ടുകളില്‍ ഊതുന്നവരുടെ ",
+      "arabicPositions": [
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "phrase": "ദ്രോഹത്തില്‍നിന്ന്.",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    }
+  ],
+  "113:5": [
+    {
+      "phrase": "അസൂയാലു ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "അസൂയ കാണിച്ചാലുള്ള ",
+      "arabicPositions": [
+        4,
+        5
+      ]
+    },
+    {
+      "phrase": "ദ്രോഹത്തില്‍നിന്ന്.",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    }
+  ],
+  "114:1": [
+    {
+      "phrase": "പറയുക: ",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "ഞാന്‍ ശരണം തേടുന്നു, ",
+      "arabicPositions": [
+        2
+      ]
+    },
+    {
+      "phrase": "ജനങ്ങളുടെ ",
+      "arabicPositions": [
+        4
+      ]
+    },
+    {
+      "phrase": "നാഥനോട്.",
+      "arabicPositions": [
+        3
+      ]
+    }
+  ],
+  "114:2": [
+    {
+      "phrase": "ജനങ്ങളുടെ ",
+      "arabicPositions": [
+        2
+      ]
+    },
+    {
+      "phrase": "രാജാവിനോട്.",
+      "arabicPositions": [
+        1
+      ]
+    }
+  ],
+  "114:3": [
+    {
+      "phrase": "ജനങ്ങളുടെ ",
+      "arabicPositions": [
+        2
+      ]
+    },
+    {
+      "phrase": "ആരാധ്യനോട്.",
+      "arabicPositions": [
+        1
+      ]
+    }
+  ],
+  "114:4": [
+    {
+      "phrase": "ദുര്‍ബോധനം നടത്തി പിന്മാറുന്ന ",
+      "arabicPositions": [
+        3,
+        4
+      ]
+    },
+    {
+      "phrase": "പിശാചിന്റെ ",
+      "arabicPositions": [
+        3,
+        4
+      ]
+    },
+    {
+      "phrase": "ദ്രോഹത്തില്‍നിന്ന്.",
+      "arabicPositions": [
+        1,
+        2
+      ]
+    }
+  ],
+  "114:5": [
+    {
+      "phrase": "അവന്‍, ",
+      "arabicPositions": [
+        1
+      ]
+    },
+    {
+      "phrase": "മനുഷ്യ മനസ്സുകളില്‍ ",
+      "arabicPositions": [
+        4,
+        5
+      ]
+    },
+    {
+      "phrase": "ദുര്‍ബോധനം നടത്തുന്നവനാണ്.",
+      "arabicPositions": [
+        2,
+        3
+      ]
+    }
+  ],
+  "114:6": [
+    {
+      "phrase": "മനുഷ്യരിലും ",
+      "arabicPositions": [
+        3
+      ]
+    },
+    {
+      "phrase": "ജിന്നുകളിലും ",
+      "arabicPositions": [
+        2
+      ]
+    },
+    {
+      "phrase": "പെട്ടവനും.",
+      "arabicPositions": [
+        1
+      ]
+    }
   ]
 }

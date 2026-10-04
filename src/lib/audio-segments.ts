@@ -54,11 +54,24 @@ export async function fetchChapterSegments(
 }
 
 function parseSegments(raw: Array<Array<string | number>>): WordSegment[] {
-  return raw.map((seg) => ({
-    wordIndex: typeof seg[0] === "string" ? parseInt(seg[0], 10) : seg[0],
-    startMs: typeof seg[2] === "string" ? parseInt(seg[2], 10) : seg[2],
-    endMs: typeof seg[3] === "string" ? parseInt(seg[3], 10) : seg[3],
-  }));
+  const result: WordSegment[] = [];
+  for (const seg of raw) {
+    const fromIdx = typeof seg[0] === "string" ? parseInt(seg[0], 10) : Number(seg[0]);
+    const toIdx = typeof seg[1] === "string" ? parseInt(seg[1], 10) : Number(seg[1]);
+    const startMs = typeof seg[2] === "string" ? parseInt(seg[2], 10) : Number(seg[2]);
+    const endMs = typeof seg[3] === "string" ? parseInt(seg[3], 10) : Number(seg[3]);
+
+    if (!isNaN(fromIdx) && !isNaN(startMs) && !isNaN(endMs)) {
+      if (!isNaN(toIdx) && toIdx > fromIdx) {
+        for (let w = fromIdx; w < toIdx; w++) {
+          result.push({ wordIndex: w, startMs, endMs });
+        }
+      } else {
+        result.push({ wordIndex: fromIdx, startMs, endMs });
+      }
+    }
+  }
+  return result;
 }
 
 export function findWordAtTime(

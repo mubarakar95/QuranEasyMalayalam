@@ -248,13 +248,26 @@ export default function AudioPlayer({
           wordIndices = words;
         }
       }
-    } else if (reciterRef.current.quranComId) {
-      // Use Arabic reciter segments (existing behaviour)
-      wordIndex = findWordAtTime(segmentsRef.current, verseKey, currentTimeMs);
+    } else {
+      // Arabic reciter segments
+      const words = findWordsAtTime(segmentsRef.current, verseKey, currentTimeMs);
+      if (words.length > 0) {
+        wordIndex = words[0];
+        wordIndices = words;
+      } else if (!reciterRef.current.quranComId || segmentsRef.current.length === 0) {
+        // Proportional word timing fallback for reciters without Quran.com segments
+        const wordsCount = ayah.text ? ayah.text.trim().split(/\s+/).length : 0;
+        if (wordsCount > 0 && audio.duration > 0) {
+          const wordDurMs = (audio.duration * 1000) / wordsCount;
+          const idx = Math.min(wordsCount - 1, Math.max(0, Math.floor(currentTimeMs / wordDurMs)));
+          wordIndex = idx;
+          wordIndices = [idx];
+        }
+      }
     }
 
-    const highlightKey = isMl
-      ? (wordIndices && wordIndices.length > 0 ? wordIndices.slice().sort((a, b) => a - b).join(",") : null)
+    const highlightKey = wordIndices && wordIndices.length > 0
+      ? wordIndices.slice().sort((a, b) => a - b).join(",")
       : (wordIndex !== null ? String(wordIndex) : null);
 
     if (highlightKey !== currentWordKeyRef.current) {
@@ -449,29 +462,15 @@ export default function AudioPlayer({
       setDuration(audio.duration);
       audio.defaultPlaybackRate = playbackRateRef.current;
       audio.playbackRate = playbackRateRef.current;
-      const shouldTrackArabic =
-        (mode === "arabic" || (mode === "both" && !playingMalayalam)) &&
-        reciter.quranComId;
-      const shouldTrackMalayalam =
-        mode === "malayalam" || (mode === "both" && playingMalayalam);
-      if (shouldTrackArabic || shouldTrackMalayalam) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(trackWordFn);
-      }
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(trackWordFn);
     };
 
     const handlePlay = () => {
       audio.defaultPlaybackRate = playbackRateRef.current;
       audio.playbackRate = playbackRateRef.current;
-      const shouldTrackArabic =
-        (mode === "arabic" || (mode === "both" && !playingMalayalam)) &&
-        reciter.quranComId;
-      const shouldTrackMalayalam =
-        mode === "malayalam" || (mode === "both" && playingMalayalam);
-      if (shouldTrackArabic || shouldTrackMalayalam) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(trackWordFn);
-      }
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(trackWordFn);
     };
 
     audioHandlers.set(audio, { handleEnded, handleError, handleTimeUpdate, handleLoadedMetadata, handlePlay });
@@ -496,15 +495,8 @@ export default function AudioPlayer({
         playCalled = true;
         audio.defaultPlaybackRate = playbackRateRef.current;
         audio.playbackRate = playbackRateRef.current;
-        const shouldTrackArabic =
-          (mode === "arabic" || (mode === "both" && !playingMalayalam)) &&
-          reciter.quranComId;
-        const shouldTrackMalayalam =
-          mode === "malayalam" || (mode === "both" && playingMalayalam);
-        if (shouldTrackArabic || shouldTrackMalayalam) {
-          cancelAnimationFrame(rafRef.current);
-          rafRef.current = requestAnimationFrame(trackWordFn);
-        }
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(trackWordFn);
       }).catch(() => {
         if (audioRef.current === audio) {
           setIsPlaying(false);

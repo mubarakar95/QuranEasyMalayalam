@@ -5,15 +5,9 @@ import * as fs from "fs";
 import * as path from "path";
 
 const CANDIDATE_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemini-flash-latest",
-  "gemini-flash-lite-latest",
+  "gemini-2.5-flash",
   "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
   "gemini-1.5-flash",
 ];
 
@@ -165,7 +159,12 @@ async function processPageAlignments(
     } catch {}
   }
   if (!geminiApiKey) {
-    geminiApiKey = "AQ.Ab8RN6Ic7DWosMJhV5awpM4VgXic15QMI6Df49iN7VYBMTMZ7g";
+    onProgress?.({
+      type: "error",
+      message: "Add your Gemini API key in Settings for live translation alignment",
+      alignments,
+    });
+    return { alignments, source: "partial_cache" };
   }
 
   // 5. Fetch entire page's Malayalam translation in ONE call
