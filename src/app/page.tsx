@@ -32,7 +32,17 @@ export default function Home() {
   const [translationMap, setTranslationMap] = useState<Map<string, string> | null>(null);
   const [translationMapRight, setTranslationMapRight] = useState<Map<string, string> | null>(null);
   const [audioMode, setAudioMode] = useState<AudioMode>("arabic");
-  const [twoPageMode, setTwoPageMode] = useState(false);
+  const [twoPageMode, setTwoPageMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const isDesktop = !/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && window.innerWidth >= 768;
+    try {
+      const saved = localStorage.getItem("quran-two-page-mode");
+      if (saved !== null) return saved === "true";
+      return isDesktop;
+    } catch {
+      return isDesktop;
+    }
+  });
   const [isMobileScreen, setIsMobileScreen] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -63,7 +73,16 @@ export default function Home() {
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobileScreen(window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+      const isMobile = window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      setIsMobileScreen(isMobile);
+      if (!isMobile) {
+        try {
+          const saved = localStorage.getItem("quran-two-page-mode");
+          if (saved === null) {
+            setTwoPageMode(true);
+          }
+        } catch {}
+      }
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -81,9 +100,8 @@ export default function Home() {
       if (savedTheme && ["light", "creme", "dark"].includes(savedTheme)) {
         setTheme(savedTheme);
       } else {
-        const savedDark = localStorage.getItem("quran-dark-mode");
-        if (savedDark === "true") setTheme("dark");
-        else if (savedDark === null && window.matchMedia("(prefers-color-scheme: dark)").matches) setTheme("dark");
+        // Light theme is the default enabled
+        setTheme("light");
       }
       const savedTranslation = localStorage.getItem("quran-show-translation");
       if (savedTranslation === "true") setShowTranslation(true);
@@ -91,10 +109,17 @@ export default function Home() {
       if (savedWordByWord === "true") setShowWordByWord(true);
       const savedSwipeWBW = localStorage.getItem("quran-show-swipe-wbw");
       if (savedSwipeWBW === "true") setShowSwipeWBW(true);
+
+      const isDesktop = !/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && window.innerWidth >= 768;
       const savedTwoPage = localStorage.getItem("quran-two-page-mode");
-      if (savedTwoPage === "true") {
+      const shouldEnableTwoPage = savedTwoPage !== null ? savedTwoPage === "true" : isDesktop;
+      if (shouldEnableTwoPage) {
         setTwoPageMode(true);
-        if (savedPage % 2 === 0 && window.innerWidth >= 768) setCurrentPage(savedPage - 1);
+        if (targetPage % 2 === 0 && isDesktop) {
+          setCurrentPage(Math.max(1, targetPage - 1));
+        }
+      } else {
+        setTwoPageMode(false);
       }
       const savedMlSize = parseInt(localStorage.getItem("quran-ml-font-size") || "100");
       if (savedMlSize >= 60 && savedMlSize <= 200) setMlFontSize(savedMlSize);
