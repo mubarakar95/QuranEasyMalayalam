@@ -485,35 +485,46 @@ body {
   background-color: rgba(96, 165, 250, 0.45);
 }
 
-.mushaf-word.word-tapped {
+.mushaf-word.word-tapped,
+.mushaf-word.word-hovered {
   background-color: rgba(251, 191, 36, 0.35) !important;
   border-radius: 0 !important;
   outline: none !important;
   box-shadow: none !important;
 }
 
-.mushaf-word.word-tapped:not(.mushaf-word.word-tapped + .mushaf-word.word-tapped) {
+.mushaf-word.word-tapped:not(.mushaf-word.word-tapped + .mushaf-word.word-tapped),
+.mushaf-word.word-hovered:not(.mushaf-word.word-hovered + .mushaf-word.word-hovered) {
   border-top-left-radius: 3px;
   border-bottom-left-radius: 3px;
 }
 
-.mushaf-word.word-tapped:has(+ :not(.mushaf-word.word-tapped)) {
+.mushaf-word.word-tapped:has(+ :not(.mushaf-word.word-tapped)),
+.mushaf-word.word-hovered:has(+ :not(.mushaf-word.word-hovered)) {
   border-top-right-radius: 3px;
   border-bottom-right-radius: 3px;
 }
 
-.mushaf-word.word-tapped:not(.mushaf-word.word-tapped + .mushaf-word.word-tapped):has(+ :not(.mushaf-word.word-tapped)) {
+.mushaf-word.word-tapped:not(.mushaf-word.word-tapped + .mushaf-word.word-tapped):has(+ :not(.mushaf-word.word-tapped)),
+.mushaf-word.word-hovered:not(.mushaf-word.word-hovered + .mushaf-word.word-hovered):has(+ :not(.mushaf-word.word-hovered)) {
   border-radius: 3px;
   background-color: rgba(251, 191, 36, 0.35) !important;
 }
 
-.wbw-group-tapped {
+.dark .mushaf-word.word-tapped,
+.dark .mushaf-word.word-hovered {
+  background-color: rgba(251, 191, 36, 0.28) !important;
+}
+
+.wbw-group-tapped,
+.wbw-group-hovered {
   background: rgba(251, 191, 36, 0.15) !important;
   border-color: rgba(251, 191, 36, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.6), 0 0 12px rgba(251, 191, 36, 0.3);
 }
 
-.dark .wbw-group-tapped {
+.dark .wbw-group-tapped,
+.dark .wbw-group-hovered {
   background: rgba(251, 146, 60, 0.25) !important;
   border-color: rgba(251, 146, 60, 0.6) !important;
   box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.6), 0 0 12px rgba(251, 146, 60, 0.3);
@@ -786,7 +797,8 @@ body {
 .madani-slot-area .mushaf-word:hover,
 .madani-slot-area .mushaf-word.highlighted,
 .madani-slot-area .mushaf-word.word-highlighted,
-.madani-slot-area .mushaf-word.word-tapped {
+.madani-slot-area .mushaf-word.word-tapped,
+.madani-slot-area .mushaf-word.word-hovered {
   transition: color 0.15s ease, background-color 0.15s ease;
 }
 
@@ -3013,4 +3025,89 @@ body {
   font-size: 0.8rem;
   opacity: 0.8;
   color: #d6cdb5;
+}
+
+/* Word Hover Tooltip */
+.word-hover-tooltip {
+  position: fixed;
+  z-index: 100000;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(-50%, -100%) translateY(-6px);
+  will-change: left, top;
+  direction: ltr;
+  animation: wordTooltipFadeIn 0.1s ease-out;
+}
+
+.word-hover-tooltip.is-below {
+  transform: translate(-50%, 0) translateY(6px);
+  animation: wordTooltipFadeInBelow 0.1s ease-out;
+}
+
+@keyframes wordTooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) translateY(0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) translateY(-6px) scale(1);
+  }
+}
+
+@keyframes wordTooltipFadeInBelow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0) translateY(0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) translateY(6px) scale(1);
+  }
+}
+
+.word-hover-tooltip-content {
+  background: var(--background, #ffffff);
+  color: var(--foreground, #111111);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.14));
+  border-radius: 10px;
+  padding: 0.4rem 0.85rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-width: min(90vw, 420px);
+  width: max-content;
+}
+
+.dark .word-hover-tooltip-content {
+  background: rgba(24, 24, 27, 0.95);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.word-hover-tooltip-ml {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: center;
+}
+
+.word-hover-tooltip-ar {
+  font-size: 0.95rem;
+  opacity: 0.85;
+  color: var(--muted);
+  font-family: serif;
+  direction: rtl;
+  margin-top: 0.25rem;
+  text-align: center;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
 }

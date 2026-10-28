@@ -32,6 +32,10 @@ interface SidebarProps {
   onReciterChange?: (reciter: Reciter) => void;
   theme?: "light" | "creme" | "dark";
   onThemeChange?: (theme: "light" | "creme" | "dark") => void;
+  hoverDelay: number;
+  onHoverDelayChange: (delay: number) => void;
+  hoverFontSize: number;
+  onHoverFontSizeChange: (size: number) => void;
 }
 
 interface SurahItem {
@@ -89,6 +93,10 @@ export default function Sidebar({
   onReciterChange,
   theme = "light",
   onThemeChange,
+  hoverDelay,
+  onHoverDelayChange,
+  hoverFontSize,
+  onHoverFontSizeChange,
 }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<"navigate" | "settings">("navigate");
   const [navTab, setNavTab] = useState<"surah" | "juz" | "page">("surah");
@@ -553,6 +561,71 @@ export default function Sidebar({
                   </button>
                 </div>
               </div>
+
+              <div className="px-3 py-3 border-t border-[var(--border)]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-[var(--foreground)]">Word Hover Meaning</span>
+                </div>
+
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-[var(--muted)]">Popup Speed</span>
+                    <span className="text-xs font-medium tabular-nums">
+                      {hoverDelay === 0 ? "Instant (0ms)" : hoverDelay <= 80 ? "Fast (80ms)" : "Normal (200ms)"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 bg-[var(--surface)] p-1 rounded-lg">
+                    {[
+                      { label: "Instant", value: 0 },
+                      { label: "Fast", value: 80 },
+                      { label: "Normal", value: 200 },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => onHoverDelayChange(opt.value)}
+                        className={`py-1 text-xs rounded font-medium transition-all ${
+                          hoverDelay === opt.value
+                            ? "bg-[var(--background)] text-[var(--foreground)] shadow-xs font-semibold"
+                            : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-[var(--muted)]">Label Size</span>
+                    <span className="text-xs font-medium tabular-nums">
+                      {hoverFontSize <= 14 ? "Medium (14px)" : hoverFontSize <= 18 ? "Large (18px)" : "X-Large (22px)"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 bg-[var(--surface)] p-1 rounded-lg">
+                    {[
+                      { label: "Medium", value: 14 },
+                      { label: "Large", value: 18 },
+                      { label: "X-Large", value: 22 },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => onHoverFontSizeChange(opt.value)}
+                        className={`py-1 text-xs rounded font-medium transition-all ${
+                          hoverFontSize === opt.value
+                            ? "bg-[var(--background)] text-[var(--foreground)] shadow-xs font-semibold"
+                            : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="px-3 py-3 border-t border-[var(--border)] mt-1">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs text-[var(--muted)]">Gemini API Key</span>

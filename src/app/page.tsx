@@ -13,6 +13,7 @@ import QuranPage from "@/components/QuranPage";
 import SwipeWBWView from "@/components/SwipeWBWView";
 import PageFlipBook from "@/components/PageFlipBook";
 import GeminiToast from "@/components/GeminiToast";
+import ShortcutLegend from "@/components/ShortcutLegend";
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,10 +54,42 @@ export default function Home() {
   const [currentAyahIndex, setCurrentAyahIndex] = useState(0);
   const [audioVisible, setAudioVisible] = useState(true);
   const [lineHeight, setLineHeight] = useState(100);
-  const [playerPlaybackRate, setPlayerPlaybackRate] = useState(1);
+  const [playerArabicPlaybackRate, setPlayerArabicPlaybackRate] = useState(1);
+  const [playerMalayalamPlaybackRate, setPlayerMalayalamPlaybackRate] = useState(1);
   const [playerRepeatMode, setPlayerRepeatMode] = useState<RepeatMode>("none");
   const [playMalayalamRequest, setPlayMalayalamRequest] = useState<{ verseKey: string; mode?: AudioMode; timestamp: number } | null>(null);
   const [activeAyahSheetKey, setActiveAyahSheetKey] = useState<string | null>(null);
+  const [hoverDelay, setHoverDelay] = useState(80);
+  const [hoverFontSize, setHoverFontSize] = useState(18);
+
+  const handleArabicPlaybackRateChange = useCallback((rate: number) => {
+    setPlayerArabicPlaybackRate(rate);
+    try { localStorage.setItem("quran-playback-rate-arabic", rate.toString()); } catch {}
+  }, []);
+
+  const handleMalayalamPlaybackRateChange = useCallback((rate: number) => {
+    setPlayerMalayalamPlaybackRate(rate);
+    try { localStorage.setItem("quran-playback-rate-malayalam", rate.toString()); } catch {}
+  }, []);
+
+  const handleRepeatModeChange = useCallback((mode: RepeatMode) => {
+    setPlayerRepeatMode(mode);
+    try { localStorage.setItem("quran-repeat-mode", mode); } catch {}
+  }, []);
+
+  const handleHoverDelayChange = useCallback((delay: number) => {
+    setHoverDelay(delay);
+    try {
+      localStorage.setItem("quran-hover-delay", delay.toString());
+    } catch {}
+  }, []);
+
+  const handleHoverFontSizeChange = useCallback((size: number) => {
+    setHoverFontSize(size);
+    try {
+      localStorage.setItem("quran-hover-size", size.toString());
+    } catch {}
+  }, []);
 
   // Two-page spread is strictly disabled on mobile devices / screens (< 768px)
   const effectiveTwoPageMode = twoPageMode && !isMobileScreen;
@@ -132,10 +165,22 @@ export default function Home() {
         const found = RECITERS.find((r) => r.id === savedReciterId);
         if (found) setReciter(found);
       }
-      const savedPlaybackRate = parseFloat(localStorage.getItem("quran-playback-rate") || "1");
-      if ([1, 1.25, 1.5, 2].includes(savedPlaybackRate)) setPlayerPlaybackRate(savedPlaybackRate);
+      const savedArabicRate = parseFloat(localStorage.getItem("quran-playback-rate-arabic") || localStorage.getItem("quran-playback-rate") || "1");
+      if ([1, 1.25, 1.5, 2].includes(savedArabicRate)) setPlayerArabicPlaybackRate(savedArabicRate);
+      const savedMalayalamRate = parseFloat(localStorage.getItem("quran-playback-rate-malayalam") || localStorage.getItem("quran-playback-rate") || "1");
+      if ([1, 1.25, 1.5, 2].includes(savedMalayalamRate)) setPlayerMalayalamPlaybackRate(savedMalayalamRate);
       const savedRepeatMode = localStorage.getItem("quran-repeat-mode") as RepeatMode | null;
       if (savedRepeatMode && ["none", "ayah", "page"].includes(savedRepeatMode)) setPlayerRepeatMode(savedRepeatMode);
+      const savedHoverDelay = localStorage.getItem("quran-hover-delay");
+      if (savedHoverDelay !== null) {
+        const parsed = parseInt(savedHoverDelay, 10);
+        if (!isNaN(parsed) && [0, 80, 200].includes(parsed)) setHoverDelay(parsed);
+      }
+      const savedHoverSize = localStorage.getItem("quran-hover-size");
+      if (savedHoverSize !== null) {
+        const parsed = parseInt(savedHoverSize, 10);
+        if (!isNaN(parsed) && [14, 18, 22].includes(parsed)) setHoverFontSize(parsed);
+      }
     } catch {
       /* localStorage unavailable (e.g. Safari private) */
     }
@@ -241,8 +286,17 @@ export default function Home() {
   }, [reciter]);
 
   useEffect(() => {
-    try { localStorage.setItem("quran-playback-rate", playerPlaybackRate.toString()); } catch {}
-  }, [playerPlaybackRate]);
+    try {
+      localStorage.setItem("quran-playback-rate-arabic", playerArabicPlaybackRate.toString());
+      localStorage.setItem("quran-playback-rate", playerArabicPlaybackRate.toString());
+    } catch {}
+  }, [playerArabicPlaybackRate]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("quran-playback-rate-malayalam", playerMalayalamPlaybackRate.toString());
+    } catch {}
+  }, [playerMalayalamPlaybackRate]);
 
   useEffect(() => {
     try { localStorage.setItem("quran-repeat-mode", playerRepeatMode); } catch {}
@@ -321,11 +375,16 @@ export default function Home() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-      if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) return;
+      if (e.key === "ArrowLeft") {
         e.preventDefault();
         goNext();
-      } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      } else if (e.key === "ArrowRight") {
         e.preventDefault();
         goPrev();
       }
@@ -362,8 +421,9 @@ export default function Home() {
 
   const ayahs = useMemo(() => {
     const leftAyahs = pageData?.ayahs || [];
-    if (!effectiveTwoPageMode || !pageDataRight?.ayahs) return leftAyahs;
-    return [...leftAyahs, ...pageDataRight.ayahs];
+    const rightAyahs = pageDataRight?.ayahs;
+    if (!effectiveTwoPageMode || !rightAyahs) return leftAyahs;
+    return [...leftAyahs, ...rightAyahs];
   }, [effectiveTwoPageMode, pageData?.ayahs, pageDataRight?.ayahs]);
 
   const surahName = pageData?.ayahs[0]?.surah.englishName;
@@ -393,6 +453,8 @@ export default function Home() {
         onPlayAyah={handlePlayAyah}
         activeAyahSheetKey={activeAyahSheetKey}
         onAyahSheetChange={setActiveAyahSheetKey}
+        hoverDelay={hoverDelay}
+        hoverFontSize={hoverFontSize}
       />
     ),
     [
@@ -408,6 +470,8 @@ export default function Home() {
       handleOpenAyahSheet,
       handlePlayAyah,
       activeAyahSheetKey,
+      hoverDelay,
+      hoverFontSize,
     ]
   );
 
@@ -553,13 +617,17 @@ export default function Home() {
           onPageComplete={goNext}
           canGoNext={effectiveTwoPageMode ? currentPage + 1 < TOTAL_PAGES : currentPage < TOTAL_PAGES}
           canGoPrev={currentPage > 1}
-          playbackRate={playerPlaybackRate}
-          onPlaybackRateChange={setPlayerPlaybackRate}
+          arabicPlaybackRate={playerArabicPlaybackRate}
+          onArabicPlaybackRateChange={handleArabicPlaybackRateChange}
+          malayalamPlaybackRate={playerMalayalamPlaybackRate}
+          onMalayalamPlaybackRateChange={handleMalayalamPlaybackRateChange}
           repeatMode={playerRepeatMode}
-          onRepeatModeChange={setPlayerRepeatMode}
+          onRepeatModeChange={handleRepeatModeChange}
           playRequest={playMalayalamRequest}
         />
       </div>
+
+      <ShortcutLegend audioVisible={audioVisible} />
 
       <div
         className="bottom-bar"
@@ -619,6 +687,10 @@ export default function Home() {
       onReciterChange={setReciter}
       theme={theme}
       onThemeChange={setTheme}
+      hoverDelay={hoverDelay}
+      onHoverDelayChange={handleHoverDelayChange}
+      hoverFontSize={hoverFontSize}
+      onHoverFontSizeChange={handleHoverFontSizeChange}
     />
     <GeminiToast />
     </ErrorBoundary>

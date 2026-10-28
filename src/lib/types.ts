@@ -52,9 +52,17 @@ export interface WordSegment {
   endMs: number;
 }
 
+export interface AyahClause {
+  startMs: number;
+  endMs: number;
+  wordIndices: number[];
+  phrase?: string;
+}
+
 export interface AyahSegments {
   verseKey: string;
   segments: WordSegment[];
+  clauses?: AyahClause[];
 }
 
 export interface HighlightWord {

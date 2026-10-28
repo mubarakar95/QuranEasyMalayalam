@@ -10,22 +10,12 @@ import * as path from "path";
 // calls start with that known-working model directly.
 const CANDIDATE_MODELS = [
   "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-3.1-pro",
   "gemini-flash-latest",
   "gemini-flash-lite-latest",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-pro",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-8b",
-  "gemini-1.5-pro",
 ];
 
 let activeWorkingModel: string = CANDIDATE_MODELS[0];
@@ -42,19 +32,7 @@ export async function GET(
     return NextResponse.json({ error: "Invalid params" }, { status: 400 });
   }
 
-  // ── Resolve Gemini API key ─────────────────────────────────────────────────
-  // User's personal key (from header) takes priority over server env var.
-  const geminiApiKey =
-    _req.headers.get("x-gemini-key") || process.env.GEMINI_API_KEY || "";
-  if (!geminiApiKey) {
-    return NextResponse.json(
-      { error: "no_key", message: "No Gemini API key. Add your key in Settings." },
-      { status: 401 }
-    );
-  }
-  const genai = new GoogleGenAI({ apiKey: geminiApiKey });
-
-  // ── 1. Check Supabase cache ────────────────────────────────────────────────
+  // ── 1. Check Supabase cache first (serves cached ayahs without needing API key) ──
   const supabase = await createClient();
   const { data: cached } = await supabase
     .from("ml_word_timestamps")
@@ -64,8 +42,30 @@ export async function GET(
     .maybeSingle();
 
   if (cached?.segments) {
-    return NextResponse.json({ segments: cached.segments, source: "cache" });
+    const raw = cached.segments;
+    const isObj = typeof raw === "object" && raw !== null && !Array.isArray(raw);
+    const segs = isObj && Array.isArray((raw as { words?: unknown[] }).words)
+      ? (raw as { words: unknown[] }).words
+      : Array.isArray(raw)
+      ? raw
+      : [];
+    const clauses = isObj && Array.isArray((raw as { clauses?: unknown[] }).clauses)
+      ? (raw as { clauses: unknown[] }).clauses
+      : undefined;
+
+    return NextResponse.json({ segments: segs, clauses, source: "cache" });
   }
+
+  // ── 2. Resolve Gemini API key for on-demand generation ────────────────────
+  const geminiApiKey =
+    _req.headers.get("x-gemini-key") || process.env.GEMINI_API_KEY || "";
+  if (!geminiApiKey) {
+    return NextResponse.json(
+      { error: "no_key", message: "No Gemini API key. Add your key in Settings." },
+      { status: 401 }
+    );
+  }
+  const genai = new GoogleGenAI({ apiKey: geminiApiKey });
 
   // ── 2. Load Arabic words and Malayalam translation ───────────────────────
   let arabicWords: string[] = [];
@@ -133,15 +133,18 @@ ${mlText}
 Arabic words (0-indexed):
 ${wordList}
 
-The narrator speaks in natural, flowing Malayalam clauses/sentences, not isolated words.
-Your task: listen carefully to the Malayalam audio and segment it into the spoken clauses/sentences.
+The narrator speaks in natural, flowing Malayalam clauses/sentences according to meaning-completion stops (waqf).
+Your task: listen carefully to the Malayalam audio and segment it into sequential clauses/sentences.
 For each spoken clause, provide:
 - "startMs": millisecond timestamp when the narrator starts speaking this clause (integer)
 - "endMs": millisecond timestamp when the narrator finishes speaking this clause (integer)
-- "wordIndices": array of 0-based Arabic word indices that correspond to the meaning of this spoken clause.
+- "wordIndices": array of contiguous 0-based Arabic word indices that correspond to the meaning of this spoken clause.
 
 CRITICAL RULES:
-- Every Arabic word from 0 to ${arabicWords.length - 1} must be covered across the clauses.
+- For short ayahs (1-5 words), 1 clause is fine.
+- For longer ayahs, segment at natural meaning-completion stops (waqf / sentence endings / narrator pause points).
+- The "wordIndices" for each clause MUST be contiguous sequential slices of the verse covering from 0 to ${arabicWords.length - 1} in order (e.g. Clause 1 covers [0, 1, 2], Clause 2 covers [3, 4, 5, 6], etc.) so that the Arabic recitation can play sequentially for each clause.
+- All Arabic words from 0 to ${arabicWords.length - 1} must be covered across the clauses.
 - startMs and endMs must be integers (no decimals).
 - Return ONLY a valid JSON array of clause objects with "startMs", "endMs", and "wordIndices". No explanation, no markdown backticks.
 
@@ -158,6 +161,7 @@ Example output:
   ];
 
   let segments: { wordIndex: number; startMs: number; endMs: number }[] | null = null;
+  let clauses: Array<{ startMs: number; endMs: number; wordIndices: number[] }> | null = null;
   let lastErrorMsg = "";
   let lastErrorCode = "gemini_error";
   let lastErrorStatus = 502;
@@ -192,19 +196,22 @@ Example output:
         throw new Error(`Invalid segments array returned by ${modelName}`);
       }
 
+      const parsedClauses: Array<{ startMs: number; endMs: number; wordIndices: number[] }> = [];
       const flattened: Array<{ wordIndex: number; startMs: number; endMs: number }> = [];
       for (const item of parsed) {
-        if (Array.isArray(item.wordIndices)) {
-          for (const wIdx of item.wordIndices) {
-            flattened.push({
-              wordIndex: Number(wIdx),
-              startMs: Math.round(Number(item.startMs)),
-              endMs: Math.round(Number(item.endMs)),
-            });
-          }
-        } else if (typeof item.wordIndex === "number") {
+        const itemWords = Array.isArray(item.wordIndices)
+          ? item.wordIndices.map(Number)
+          : typeof item.wordIndex === "number"
+          ? [Number(item.wordIndex)]
+          : [];
+        parsedClauses.push({
+          startMs: Math.round(Number(item.startMs)),
+          endMs: Math.round(Number(item.endMs)),
+          wordIndices: itemWords,
+        });
+        for (const wIdx of itemWords) {
           flattened.push({
-            wordIndex: Number(item.wordIndex),
+            wordIndex: wIdx,
             startMs: Math.round(Number(item.startMs)),
             endMs: Math.round(Number(item.endMs)),
           });
@@ -217,6 +224,7 @@ Example output:
 
       flattened.sort((x, y) => x.wordIndex - y.wordIndex);
       segments = flattened;
+      clauses = parsedClauses;
       successfulModel = modelName;
       activeWorkingModel = modelName; // Remember this working model for future calls!
       break;
@@ -275,8 +283,11 @@ Example output:
   await supabase.from("ml_word_timestamps").upsert({
     surah_number: surahNumber,
     ayah_number: ayahNumber,
-    segments,
+    segments: {
+      words: segments,
+      clauses,
+    },
   });
 
-  return NextResponse.json({ segments, source: "gemini", model: successfulModel });
+  return NextResponse.json({ segments, clauses, source: "gemini", model: successfulModel });
 }

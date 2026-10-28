@@ -24,6 +24,8 @@ interface MushafPageProps {
   isSinglePage?: boolean;
   activeAyahSheetKey?: string | null;
   onAyahSheetChange?: (verseKey: string | null) => void;
+  hoverDelay?: number;
+  hoverFontSize?: number;
 }
 
 function getWordGlobalIndex(words: PageLine["words"], verseKey: string, wordIndex: number): number | null {
@@ -80,6 +82,62 @@ function getWordMeaning(
   return null;
 }
 
+function findAdjacentWordBundle(
+  allWords: PageLine["words"],
+  targetCode: number,
+  wbwData: Record<string, string[]> | null,
+  wordByWordMap: Map<number, string>,
+  showWordByWord: boolean,
+): { codes: Set<number>; arabicText: string } {
+  const idx = allWords.findIndex((w) => w.code === targetCode);
+  if (idx === -1) return { codes: new Set([targetCode]), arabicText: "" };
+
+  const targetWord = allWords[idx];
+  const ml = getWordMeaning(targetWord, wbwData, wordByWordMap, showWordByWord);
+  if (!ml) {
+    return {
+      codes: new Set([targetCode]),
+      arabicText: targetWord.text || targetWord.char || "",
+    };
+  }
+
+  let startIdx = idx;
+  while (startIdx > 0) {
+    const prev = allWords[startIdx - 1];
+    if (prev.type !== "word" || prev.verse_key !== targetWord.verse_key) break;
+    if (getWordMeaning(prev, wbwData, wordByWordMap, showWordByWord) === ml) {
+      startIdx--;
+    } else {
+      break;
+    }
+  }
+
+  let endIdx = idx;
+  while (endIdx < allWords.length - 1) {
+    const next = allWords[endIdx + 1];
+    if (next.type !== "word" || next.verse_key !== targetWord.verse_key) break;
+    if (getWordMeaning(next, wbwData, wordByWordMap, showWordByWord) === ml) {
+      endIdx++;
+    } else {
+      break;
+    }
+  }
+
+  const codes = new Set<number>();
+  const wordsInOrder: PageLine["words"] = [];
+  for (let i = startIdx; i <= endIdx; i++) {
+    codes.add(allWords[i].code);
+    wordsInOrder.push(allWords[i]);
+  }
+
+  const arabicText = wordsInOrder
+    .map((w) => w.text || w.char)
+    .filter(Boolean)
+    .join(" ");
+
+  return { codes, arabicText };
+}
+
 function findAdjacentGroup(
   allWords: PageLine["words"],
   tappedCode: number,
@@ -87,33 +145,7 @@ function findAdjacentGroup(
   wordByWordMap: Map<number, string>,
   showWordByWord: boolean,
 ): Set<number> {
-  const idx = allWords.findIndex((w) => w.code === tappedCode);
-  if (idx === -1) return new Set([tappedCode]);
-
-  const targetWord = allWords[idx];
-  const tappedMl = getWordMeaning(targetWord, wbwData, wordByWordMap, showWordByWord);
-  if (!tappedMl) return new Set([tappedCode]);
-
-  const group = new Set<number>([tappedCode]);
-  for (let i = idx - 1; i >= 0; i--) {
-    const w = allWords[i];
-    if (w.type !== "word" || w.verse_key !== targetWord.verse_key) break;
-    if (getWordMeaning(w, wbwData, wordByWordMap, showWordByWord) === tappedMl) {
-      group.add(w.code);
-    } else {
-      break;
-    }
-  }
-  for (let i = idx + 1; i < allWords.length; i++) {
-    const w = allWords[i];
-    if (w.type !== "word" || w.verse_key !== targetWord.verse_key) break;
-    if (getWordMeaning(w, wbwData, wordByWordMap, showWordByWord) === tappedMl) {
-      group.add(w.code);
-    } else {
-      break;
-    }
-  }
-  return group;
+  return findAdjacentWordBundle(allWords, tappedCode, wbwData, wordByWordMap, showWordByWord).codes;
 }
 
 function groupWbwWords(
@@ -170,6 +202,8 @@ function MushafPageInner({
   isSinglePage = false,
   activeAyahSheetKey,
   onAyahSheetChange,
+  hoverDelay = 80,
+  hoverFontSize = 18,
 }: MushafPageProps) {
   const cachedInitial = getCachedPageData(currentPage);
   const [lines, setLines] = useState<PageLine[]>(() => cachedInitial?.lines || []);
@@ -213,6 +247,151 @@ function MushafPageInner({
   const [localAyahSheet, setLocalAyahSheet] = useState<{ verseKey: string } | null>(null);
   const [tappedWordCodes, setTappedWordCodes] = useState<Set<number> | null>(null);
   const tappedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const flatWords = useMemo(() => lines.flatMap((l) => l.words), [lines]);
+
+  const wordByWordMap = useMemo(() => {
+    if (!showWordByWord || !wbwData || lines.length === 0) return new Map<number, string>();
+
+    const result = new Map<number, string>();
+    for (const line of lines) {
+      for (const word of line.words) {
+        if (word.type !== "word" || !word.verse_key) continue;
+        const verseWords = wbwData[word.verse_key];
+        if (!verseWords) continue;
+        const idx = word.position - 1;
+        if (idx >= 0 && idx < verseWords.length) {
+          const ml = verseWords[idx];
+          if (ml) result.set(word.code, ml);
+        }
+      }
+    }
+
+    return result;
+  }, [showWordByWord, wbwData, lines]);
+
+  const [hoverTooltip, setHoverTooltip] = useState<{
+    meaning: string;
+    arabic?: string;
+    verseKey?: string;
+    x: number;
+    y: number;
+    isBelow: boolean;
+  } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const warmResetTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const isWarmRef = useRef(false);
+  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const animFrameRef = useRef<number | null>(null);
+
+  const [hoveredWordCodes, setHoveredWordCodes] = useState<Set<number> | null>(null);
+
+  const computeTooltipCoords = useCallback((clientX: number, clientY: number) => {
+    const isBelow = clientY < 80;
+    const halfWidth = Math.min(150, Math.floor(window.innerWidth / 2) - 10);
+    const clampedX = Math.max(halfWidth, Math.min(window.innerWidth - halfWidth, clientX));
+    const y = isBelow ? clientY + 16 : clientY - 8;
+    return { x: clampedX, y, isBelow };
+  }, []);
+
+  const handleWordMouseEnter = useCallback(
+    (
+      e: React.MouseEvent<HTMLElement>,
+      meaning: string | null | undefined,
+      wordCode: number,
+      fallbackArabic?: string,
+      verseKey?: string | null
+    ) => {
+      if (!meaning) return;
+
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+
+      if (warmResetTimerRef.current) {
+        clearTimeout(warmResetTimerRef.current);
+        warmResetTimerRef.current = undefined;
+      }
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = undefined;
+      }
+
+      const bundle = findAdjacentWordBundle(flatWords, wordCode, wbwData, wordByWordMap, showWordByWord);
+      setHoveredWordCodes(bundle.codes);
+
+      const { x, y, isBelow } = computeTooltipCoords(e.clientX, e.clientY);
+
+      const data = {
+        meaning,
+        arabic: bundle.arabicText || fallbackArabic || undefined,
+        verseKey: verseKey || undefined,
+        x,
+        y,
+        isBelow,
+      };
+
+      if (isWarmRef.current || hoverDelay === 0) {
+        isWarmRef.current = true;
+        setHoverTooltip(data);
+      } else {
+        hoverTimerRef.current = setTimeout(() => {
+          isWarmRef.current = true;
+          const latestCoords = computeTooltipCoords(lastMousePosRef.current.x, lastMousePosRef.current.y);
+          setHoverTooltip({ ...data, ...latestCoords });
+        }, hoverDelay);
+      }
+    },
+    [hoverDelay, computeTooltipCoords, flatWords, wbwData, wordByWordMap, showWordByWord]
+  );
+
+  const handleWordMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      if (hoverTooltip) {
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = requestAnimationFrame(() => {
+          const coords = computeTooltipCoords(e.clientX, e.clientY);
+          setHoverTooltip((prev) => (prev ? { ...prev, ...coords } : null));
+        });
+      }
+    },
+    [hoverTooltip, computeTooltipCoords]
+  );
+
+  const handleWordMouseLeave = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = undefined;
+    }
+    if (warmResetTimerRef.current) {
+      clearTimeout(warmResetTimerRef.current);
+    }
+    warmResetTimerRef.current = setTimeout(() => {
+      isWarmRef.current = false;
+      setHoverTooltip(null);
+      setHoveredWordCodes(null);
+    }, 250);
+  }, []);
+
+  useEffect(() => {
+    const dismissTooltip = () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      setHoverTooltip(null);
+      setHoveredWordCodes(null);
+      isWarmRef.current = false;
+    };
+    window.addEventListener("scroll", dismissTooltip, { passive: true });
+    window.addEventListener("wheel", dismissTooltip, { passive: true });
+    return () => {
+      dismissTooltip();
+      window.removeEventListener("scroll", dismissTooltip);
+      window.removeEventListener("wheel", dismissTooltip);
+    };
+  }, []);
 
   const [sheetTranslationMap, setSheetTranslationMap] = useState<Map<string, string> | null>(null);
   const [ayahAlignments, setAyahAlignments] = useState<Record<string, PhraseAlignment[]>>({});
@@ -408,29 +587,9 @@ function MushafPageInner({
     return () => { cancelled = true; };
   }, [wbwData]);
 
-  const wordByWordMap = useMemo(() => {
-    if (!showWordByWord || !wbwData || lines.length === 0) return new Map<number, string>();
-
-    const result = new Map<number, string>();
-    for (const line of lines) {
-      for (const word of line.words) {
-        if (word.type !== "word" || !word.verse_key) continue;
-        const verseWords = wbwData[word.verse_key];
-        if (!verseWords) continue;
-        const idx = word.position - 1;
-        if (idx >= 0 && idx < verseWords.length) {
-          const ml = verseWords[idx];
-          if (ml) result.set(word.code, ml);
-        }
-      }
-    }
-
-    return result;
-  }, [showWordByWord, wbwData, lines]);
-
   const highlightedWordCodes = useMemo(() => {
     if (!highlightWord || lines.length === 0) return null;
-    const allWords = lines.flatMap((l) => l.words);
+    const allWords = flatWords;
 
     // When explicit wordIndices are provided (e.g. Malayalam spoken clause bundle),
     // highlight all matching Arabic words simultaneously!
@@ -453,7 +612,7 @@ function MushafPageInner({
     }
 
     return new Set<number>([targetCode]);
-  }, [highlightWord, lines, wbwData, wordByWordMap, showWordByWord]);
+  }, [highlightWord, lines, flatWords, wbwData, wordByWordMap, showWordByWord]);
 
 
   const verseWordsOrder = useMemo(() => {
@@ -478,8 +637,6 @@ function MushafPageInner({
       groups: groupWbwWords(line.words, wordByWordMap),
     }));
   }, [showWordByWord, wordByWordMap, lines]);
-
-  const flatWords = useMemo(() => lines.flatMap((l) => l.words), [lines]);
 
   const currentJuzObj = useMemo(() => {
     return JUZ_DATA.slice().reverse().find((j) => currentPage >= j.startPage) || JUZ_DATA[0];
@@ -559,6 +716,28 @@ function MushafPageInner({
       </div>
     );
 
+    const hoverTooltipPortal = typeof document !== "undefined" && hoverTooltip ? createPortal(
+      <div
+        className={`word-hover-tooltip ${hoverTooltip.isBelow ? "is-below" : "is-above"}`}
+        style={{
+          left: `${hoverTooltip.x}px`,
+          top: `${hoverTooltip.y}px`,
+        }}
+      >
+        <div className="word-hover-tooltip-content">
+          <div className="word-hover-tooltip-ml" style={{ fontSize: `${hoverFontSize}px` }}>
+            {hoverTooltip.meaning}
+          </div>
+          {hoverTooltip.arabic && (
+            <div className="word-hover-tooltip-ar">
+              {hoverTooltip.arabic}
+            </div>
+          )}
+        </div>
+      </div>,
+      document.body
+    ) : null;
+
     if (showAyahByAyah) {
       return (
         <>
@@ -612,12 +791,12 @@ function MushafPageInner({
                     }
 
                     const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
+                    const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(w.code);
 
                     return (
                       <span
                         key={w.code}
-                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""}`}
-
+                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
                         style={{ fontFamily: `"${w.font}", serif` }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -632,7 +811,9 @@ function MushafPageInner({
                           e.preventDefault();
                           openAyahSheet(vk);
                         }}
-                        title={mlTooltip ? `${w.text} — ${mlTooltip}` : w.text}
+                        onMouseEnter={(e) => handleWordMouseEnter(e, mlTooltip, w.code, w.text, vk)}
+                        onMouseMove={handleWordMouseMove}
+                        onMouseLeave={handleWordMouseLeave}
                       >
                         {w.char}
                       </span>
@@ -650,6 +831,7 @@ function MushafPageInner({
           })}
         </div>
         {typeof document !== "undefined" && popoverEl ? createPortal(popoverEl, document.body) : null}
+        {hoverTooltipPortal}
         </>
       );
     }
@@ -931,18 +1113,21 @@ function MushafPageInner({
                           ? (highlightWord?.bundle ? "wbw-group-ml-highlighted" : "wbw-group-ar-highlighted")
                           : "";
 
+                        const isGroupHovered = hoveredWordCodes !== null && group.words.some((w) => hoveredWordCodes.has(w.code));
+
                         return (
-                        <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""} ${groupHClass}`}>
+                        <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""} ${isGroupHovered ? "wbw-group-hovered" : ""} ${groupHClass}`}>
                           <span className="wbw-words-row">
                             {group.words.map((w) => {
                               const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
                               const isWH = highlightedWordCodes !== null && highlightedWordCodes.has(w.code);
                               const wordHClass = isWH ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : "";
+                              const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
+                              const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(w.code);
                               return (
                                 <span
                                   key={w.code}
-                                  className={`mushaf-word ${isVH ? "highlighted" : ""} ${wordHClass}`}
-
+                                  className={`mushaf-word ${isVH ? "highlighted" : ""} ${wordHClass} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
                                   style={{ fontFamily: `"${w.font}", serif` }}
                                   onClick={(e) => {
                                     if (w.verse_key) {
@@ -956,7 +1141,9 @@ function MushafPageInner({
                                     e.preventDefault();
                                     if (w.verse_key) openAyahSheet(w.verse_key);
                                   }}
-                                  title={`${w.text} — ${group.mlText}`}
+                                  onMouseEnter={(e) => handleWordMouseEnter(e, group.mlText, w.code, w.text, w.verse_key)}
+                                  onMouseMove={handleWordMouseMove}
+                                  onMouseLeave={handleWordMouseLeave}
                                 >
                                   {w.char}
                                 </span>
@@ -1005,12 +1192,12 @@ function MushafPageInner({
 
                     const mlText = w.verse_key ? findWbwMeaning(wbwData, w.verse_key, w.position) : null;
                     const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
+                    const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(w.code);
 
                     return (
                       <span
                         key={w.code}
-                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""}`}
-
+                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
                         style={{ fontFamily: `"${w.font}", serif` }}
                         onClick={(e) => {
                           if (w.verse_key) {
@@ -1026,7 +1213,9 @@ function MushafPageInner({
                           e.preventDefault();
                           if (w.verse_key) openAyahSheet(w.verse_key);
                         }}
-                        title={mlText ? `${w.text} — ${mlText}` : w.text}
+                        onMouseEnter={(e) => handleWordMouseEnter(e, mlText, w.code, w.text, w.verse_key)}
+                        onMouseMove={handleWordMouseMove}
+                        onMouseLeave={handleWordMouseLeave}
                       >
                         {w.char}
                       </span>
@@ -1087,12 +1276,12 @@ function MushafPageInner({
                       ? findWbwMeaning(wbwData, word.verse_key, word.position)
                       : null;
                     const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(word.code);
+                    const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(word.code);
 
                     return (
                       <span
                         key={word.code}
-                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${isWordTapped ? "word-tapped" : ""}`}
-
+                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
                         style={{ fontFamily: `"${word.font}", serif` }}
                         onClick={(e) => {
                           if (word.verse_key) {
@@ -1108,7 +1297,9 @@ function MushafPageInner({
                           e.preventDefault();
                           if (word.verse_key) openAyahSheet(word.verse_key);
                         }}
-                        title={mlTooltip ? `${word.text} — ${mlTooltip}` : word.text}
+                        onMouseEnter={(e) => handleWordMouseEnter(e, mlTooltip, word.code, word.text, word.verse_key)}
+                        onMouseMove={handleWordMouseMove}
+                        onMouseLeave={handleWordMouseLeave}
                       >
                         {word.char}
                         {mlText && <span className="wbw-ml">{mlText}</span>}
@@ -1124,6 +1315,7 @@ function MushafPageInner({
 
     {typeof document !== "undefined" && popoverEl ? createPortal(popoverEl, document.body) : null}
     {typeof document !== "undefined" && ayahSheetContent ? createPortal(ayahSheetContent, document.body) : null}
+    {hoverTooltipPortal}
     </>
   );
 }
@@ -1143,6 +1335,8 @@ const MushafPage = React.memo(MushafPageInner, (prev, next) => {
     prev.showWordByWord === next.showWordByWord &&
     prev.highlightVerseKey === next.highlightVerseKey &&
     prev.activeAyahSheetKey === next.activeAyahSheetKey &&
+    prev.hoverDelay === next.hoverDelay &&
+    prev.hoverFontSize === next.hoverFontSize &&
     sameHighlight &&
     (prev.showTranslation ? prev.translationMap === next.translationMap : true)
   );

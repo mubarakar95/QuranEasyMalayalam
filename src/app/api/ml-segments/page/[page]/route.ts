@@ -6,22 +6,12 @@ import * as path from "path";
 
 const CANDIDATE_MODELS = [
   "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-3.1-pro",
   "gemini-flash-latest",
   "gemini-flash-lite-latest",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-pro",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-8b",
-  "gemini-1.5-pro",
 ];
 
 let workingModel: string = CANDIDATE_MODELS[0];
@@ -92,6 +82,7 @@ interface ProgressEvent {
   message: string;
   source?: string;
   segmentsByVerse?: Record<string, unknown>;
+  clausesByVerse?: Record<string, unknown>;
 }
 
 async function processMalayalamPageSegments(
@@ -147,10 +138,20 @@ async function processMalayalamPageSegments(
 
   const pageVerseKeys = new Set(ayahs.map((a) => a.verseKey));
   const segmentsByVerse: Record<string, unknown> = {};
+  const clausesByVerse: Record<string, unknown> = {};
   for (const row of cachedRows || []) {
     const vk = `${row.surah_number}:${row.ayah_number}`;
     if (pageVerseKeys.has(vk)) {
-      segmentsByVerse[vk] = row.segments;
+      const raw = row.segments;
+      const isObj = typeof raw === "object" && raw !== null && !Array.isArray(raw);
+      segmentsByVerse[vk] = isObj && Array.isArray((raw as { words?: unknown[] }).words)
+        ? (raw as { words: unknown[] }).words
+        : Array.isArray(raw)
+        ? raw
+        : [];
+      if (isObj && Array.isArray((raw as { clauses?: unknown[] }).clauses)) {
+        clausesByVerse[vk] = (raw as { clauses: unknown[] }).clauses;
+      }
     }
   }
 
@@ -158,7 +159,7 @@ async function processMalayalamPageSegments(
 
   // If cacheOnly is requested or all ayahs are already in Supabase, return immediately!
   if (cacheOnly || missingAyahs.length === 0) {
-    const res = { segmentsByVerse, source: "cache" };
+    const res = { segmentsByVerse, clausesByVerse, source: "cache" };
     onProgress?.({
       type: "done",
       ...res,
@@ -172,6 +173,7 @@ async function processMalayalamPageSegments(
     onProgress?.({
       type: "cached_ayahs",
       segmentsByVerse,
+      clausesByVerse,
       message: `${Object.keys(segmentsByVerse).length} audio timings loaded from cache, preparing ${missingAyahs.length} remaining...`,
     });
   }
@@ -264,15 +266,18 @@ For each ayah provided below, you are given:
 2. The 0-indexed Arabic words of the ayah.
 3. The spoken Malayalam audio.
 
-The narrator speaks in natural, flowing Malayalam clauses/sentences, not isolated words.
-Your task: listen to the Malayalam audio and segment it into the spoken clauses/sentences.
+The narrator speaks in natural, flowing Malayalam clauses/sentences according to meaning-completion stops (waqf).
+Your task: listen to the Malayalam audio and segment it into sequential clauses/sentences.
 For each spoken clause, provide:
 - "startMs": millisecond timestamp when the narrator starts speaking this clause (integer)
 - "endMs": millisecond timestamp when the narrator finishes speaking this clause (integer)
-- "wordIndices": array of 0-based Arabic word indices that correspond to the meaning of this spoken clause.
+- "wordIndices": array of contiguous 0-based Arabic word indices that correspond to the meaning of this spoken clause.
 
 CRITICAL RULES:
-- Every Arabic word from 0 to N-1 must be covered across the clauses.
+- For short ayahs (1-5 words), 1 clause is fine.
+- For longer ayahs, segment at natural meaning-completion stops (waqf / sentence endings / narrator pause points).
+- The "wordIndices" for each clause MUST be contiguous sequential slices of the verse in order from 0 to N-1 (e.g. Clause 1 covers [0, 1, 2], Clause 2 covers [3, 4, 5, 6], etc.) so that the Arabic recitation can play sequentially for each clause.
+- All Arabic words from 0 to N-1 must be covered across the clauses.
 - startMs and endMs must be integers (no decimals).
 - Output format must be a valid JSON object mapping each verse key to an array of clause objects with "startMs", "endMs", and "wordIndices".
 - Return ONLY the JSON object. No explanation, no markdown backticks.
@@ -283,7 +288,8 @@ Example output format:
     { "startMs": 0, "endMs": 6270, "wordIndices": [0, 1, 2, 3, 4, 5] },
     { "startMs": 6270, "endMs": 13750, "wordIndices": [6, 7, 8, 9, 10, 11, 12] }
   ]
-}\n`,
+}
+\n`,
   });
 
   for (const a of validAyahs) {
@@ -389,10 +395,14 @@ Example output format:
         if (flattened.length > 0) {
           flattened.sort((x, y) => x.wordIndex - y.wordIndex);
           segmentsByVerse[a.verseKey] = flattened;
+          clausesByVerse[a.verseKey] = rawSegs;
           rowsToUpsert.push({
             surah_number: a.surahNumber,
             ayah_number: a.ayahNumber,
-            segments: flattened,
+            segments: {
+              words: flattened,
+              clauses: rawSegs,
+            },
           });
         }
       }
@@ -406,12 +416,13 @@ Example output format:
       } catch {}
     }
 
-    const res = { segmentsByVerse, source: "gemini" };
+    const res = { segmentsByVerse, clausesByVerse, source: "gemini" };
     onProgress?.({
       type: "done",
       source: "gemini",
       model: workingModel,
       segmentsByVerse,
+      clausesByVerse,
       message: `Audio timings saved to Supabase (${workingModel})`,
     });
     return res;
