@@ -140,12 +140,12 @@ function findAdjacentWordBundle(
 
 function findAdjacentGroup(
   allWords: PageLine["words"],
-  tappedCode: number,
+  targetCode: number,
   wbwData: Record<string, string[]> | null,
   wordByWordMap: Map<number, string>,
   showWordByWord: boolean,
 ): Set<number> {
-  return findAdjacentWordBundle(allWords, tappedCode, wbwData, wordByWordMap, showWordByWord).codes;
+  return findAdjacentWordBundle(allWords, targetCode, wbwData, wordByWordMap, showWordByWord).codes;
 }
 
 function groupWbwWords(
@@ -240,13 +240,8 @@ function MushafPageInner({
   });
   const [error, setError] = useState<string | null>(null);
   const [wbwData, setWbwData] = useState<Record<string, string[]> | null>(null);
-  const [wordPopover, setWordPopover] = useState<{ text: string; verseKey: string; el: Element } | null>(null);
-  const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const ttsAudioRef = useRef<HTMLAudioElement>(null);
   const [dataLoadingSlow, setDataLoadingSlow] = useState(false);
   const [localAyahSheet, setLocalAyahSheet] = useState<{ verseKey: string } | null>(null);
-  const [tappedWordCodes, setTappedWordCodes] = useState<Set<number> | null>(null);
-  const tappedTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const flatWords = useMemo(() => lines.flatMap((l) => l.words), [lines]);
 
@@ -281,18 +276,79 @@ function MushafPageInner({
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const warmResetTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isWarmRef = useRef(false);
+  const isPinnedByClickRef = useRef(false);
   const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const animFrameRef = useRef<number | null>(null);
 
   const [hoveredWordCodes, setHoveredWordCodes] = useState<Set<number> | null>(null);
 
   const computeTooltipCoords = useCallback((clientX: number, clientY: number) => {
-    const isBelow = clientY < 80;
+    const isBelow = clientY < 90;
     const halfWidth = Math.min(150, Math.floor(window.innerWidth / 2) - 10);
     const clampedX = Math.max(halfWidth, Math.min(window.innerWidth - halfWidth, clientX));
     const y = isBelow ? clientY + 16 : clientY - 8;
     return { x: clampedX, y, isBelow };
   }, []);
+
+  const dismissTooltip = useCallback(() => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (warmResetTimerRef.current) clearTimeout(warmResetTimerRef.current);
+    setHoverTooltip(null);
+    setHoveredWordCodes(null);
+    isWarmRef.current = false;
+    isPinnedByClickRef.current = false;
+  }, []);
+
+  const handleWordClick = useCallback(
+    (
+      e: React.MouseEvent<HTMLElement>,
+      meaning: string | null | undefined,
+      wordCode: number,
+      fallbackArabic?: string,
+      verseKey?: string | null
+    ) => {
+      e.stopPropagation();
+      if (!meaning) return;
+
+      // If already open on this exact word, toggle it off
+      if (isPinnedByClickRef.current && hoveredWordCodes?.has(wordCode)) {
+        dismissTooltip();
+        return;
+      }
+
+      if (warmResetTimerRef.current) {
+        clearTimeout(warmResetTimerRef.current);
+        warmResetTimerRef.current = undefined;
+      }
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = undefined;
+      }
+
+      const bundle = findAdjacentWordBundle(flatWords, wordCode, wbwData, wordByWordMap, showWordByWord);
+      setHoveredWordCodes(bundle.codes);
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const isBelow = rect.top < 90;
+      const halfWidth = Math.min(150, Math.floor(window.innerWidth / 2) - 10);
+      const centerX = rect.left + rect.width / 2;
+      const clampedX = Math.max(halfWidth, Math.min(window.innerWidth - halfWidth, centerX));
+      const y = isBelow ? rect.bottom + 12 : rect.top - 8;
+
+      isWarmRef.current = true;
+      isPinnedByClickRef.current = true;
+      setHoverTooltip({
+        meaning,
+        arabic: bundle.arabicText || fallbackArabic || undefined,
+        verseKey: verseKey || undefined,
+        x: clampedX,
+        y,
+        isBelow,
+      });
+    },
+    [hoveredWordCodes, dismissTooltip, flatWords, wbwData, wordByWordMap, showWordByWord]
+  );
 
   const handleWordMouseEnter = useCallback(
     (
@@ -303,6 +359,12 @@ function MushafPageInner({
       verseKey?: string | null
     ) => {
       if (!meaning) return;
+      if (isPinnedByClickRef.current) {
+        if (hoveredWordCodes?.has(wordCode)) {
+          return;
+        }
+        isPinnedByClickRef.current = false;
+      }
 
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
 
@@ -340,13 +402,20 @@ function MushafPageInner({
         }, hoverDelay);
       }
     },
-    [hoverDelay, computeTooltipCoords, flatWords, wbwData, wordByWordMap, showWordByWord]
+    [hoverDelay, computeTooltipCoords, flatWords, wbwData, wordByWordMap, showWordByWord, hoveredWordCodes]
   );
 
   const handleWordMouseMove = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
+      if (
+        typeof e.movementX === "number" &&
+        typeof e.movementY === "number" &&
+        (e.movementX !== 0 || e.movementY !== 0)
+      ) {
+        isPinnedByClickRef.current = false;
+      }
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-      if (hoverTooltip) {
+      if (hoverTooltip && !isPinnedByClickRef.current) {
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
         animFrameRef.current = requestAnimationFrame(() => {
           const coords = computeTooltipCoords(e.clientX, e.clientY);
@@ -358,6 +427,7 @@ function MushafPageInner({
   );
 
   const handleWordMouseLeave = useCallback(() => {
+    if (isPinnedByClickRef.current) return;
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
@@ -377,21 +447,22 @@ function MushafPageInner({
   }, []);
 
   useEffect(() => {
-    const dismissTooltip = () => {
-      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      setHoverTooltip(null);
-      setHoveredWordCodes(null);
-      isWarmRef.current = false;
+    const handleDocumentPointer = (e: Event) => {
+      const target = e.target as Element | null;
+      if (target && !target.closest?.(".mushaf-word") && !target.closest?.(".wbw-group")) {
+        dismissTooltip();
+      }
     };
     window.addEventListener("scroll", dismissTooltip, { passive: true });
     window.addEventListener("wheel", dismissTooltip, { passive: true });
+    document.addEventListener("pointerdown", handleDocumentPointer, { passive: true });
     return () => {
       dismissTooltip();
       window.removeEventListener("scroll", dismissTooltip);
       window.removeEventListener("wheel", dismissTooltip);
+      document.removeEventListener("pointerdown", handleDocumentPointer);
     };
-  }, []);
+  }, [dismissTooltip]);
 
   const [sheetTranslationMap, setSheetTranslationMap] = useState<Map<string, string> | null>(null);
   const [ayahAlignments, setAyahAlignments] = useState<Record<string, PhraseAlignment[]>>({});
@@ -407,13 +478,14 @@ function MushafPageInner({
 
   const openAyahSheet = useCallback(
     (verseKey: string) => {
+      dismissTooltip();
       if (onAyahSheetChange) {
         onAyahSheetChange(verseKey);
       } else {
         setLocalAyahSheet({ verseKey });
       }
     },
-    [onAyahSheetChange]
+    [onAyahSheetChange, dismissTooltip]
   );
 
   const closeAyahSheet = useCallback(() => {
@@ -487,29 +559,6 @@ function MushafPageInner({
     };
   }, [currentSheetVk, currentPage, translationMap, sheetTranslationMap]);
 
-  const dismissPopover = useCallback(() => {
-    setWordPopover(null);
-    setTappedWordCodes(null);
-    clearTimeout(popoverTimeoutRef.current);
-    clearTimeout(tappedTimeoutRef.current);
-  }, []);
-
-  useEffect(() => {
-    if (!wordPopover) return;
-    const handler = (e: Event) => {
-      const target = e.target as Element;
-      if (!target.closest?.(".mushaf-word") && !target.closest?.(".word-popover")) dismissPopover();
-    };
-    const scrollHandler = () => dismissPopover();
-    document.addEventListener("click", handler, true);
-    document.addEventListener("scroll", scrollHandler, true);
-    popoverTimeoutRef.current = setTimeout(dismissPopover, 4000);
-    return () => {
-      document.removeEventListener("click", handler, true);
-      document.removeEventListener("scroll", scrollHandler, true);
-      clearTimeout(popoverTimeoutRef.current);
-    };
-  }, [wordPopover, dismissPopover]);
 
   useEffect(() => {
     let cancelled = false;
@@ -679,42 +728,6 @@ function MushafPageInner({
 
     const showAyahByAyah = showTranslation && !showWordByWord && translationMap && verseWordsOrder.length > 0;
 
-    const popoverEl = wordPopover && (
-      <div className="word-popover" onClick={(e) => e.stopPropagation()}>
-        <span className="word-popover-ml">{wordPopover.text}</span>
-        <button
-          className="word-popover-speak"
-          onClick={(e) => {
-            e.stopPropagation();
-            const text = wordPopover.text;
-            if (!text || !ttsAudioRef.current) return;
-            ttsAudioRef.current.src = "/api/tts?text=" + encodeURIComponent(text);
-            ttsAudioRef.current.volume = 1;
-            ttsAudioRef.current.play().catch(() => {});
-          }}
-          aria-label="Speak meaning"
-          title="Speak meaning"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
-          </svg>
-        </button>
-        <button
-          className="word-popover-close"
-          onClick={(e) => {
-            e.stopPropagation();
-            dismissPopover();
-          }}
-          aria-label="Dismiss meaning"
-          title="Dismiss"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>
-        <audio ref={ttsAudioRef} preload="none" />
-      </div>
-    );
 
     const hoverTooltipPortal = typeof document !== "undefined" && hoverTooltip ? createPortal(
       <div
@@ -790,23 +803,14 @@ function MushafPageInner({
                       );
                     }
 
-                    const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
                     const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(w.code);
 
                     return (
                       <span
                         key={w.code}
-                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
+                        className={`mushaf-word ${isHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordHovered ? "word-hovered" : ""}`}
                         style={{ fontFamily: `"${w.font}", serif` }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (mlTooltip) {
-                            setWordPopover({ text: mlTooltip, verseKey: vk, el: e.currentTarget });
-                            setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
-                            clearTimeout(tappedTimeoutRef.current);
-                            tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
-                          }
-                        }}
+                        onClick={(e) => handleWordClick(e, mlTooltip, w.code, w.text, vk)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           openAyahSheet(vk);
@@ -830,7 +834,6 @@ function MushafPageInner({
             );
           })}
         </div>
-        {typeof document !== "undefined" && popoverEl ? createPortal(popoverEl, document.body) : null}
         {hoverTooltipPortal}
         </>
       );
@@ -1105,7 +1108,6 @@ function MushafPageInner({
                 >
                   {line.groups.map((group) => {
                     if (group.mlText) {
-                        const isGroupTapped = tappedWordCodes !== null && group.words.some((w) => tappedWordCodes.has(w.code));
                         const isGroupActive =
                           highlightedWordCodes !== null &&
                           group.words.some((w) => highlightedWordCodes.has(w.code));
@@ -1116,27 +1118,19 @@ function MushafPageInner({
                         const isGroupHovered = hoveredWordCodes !== null && group.words.some((w) => hoveredWordCodes.has(w.code));
 
                         return (
-                        <span key={group.key} className={`wbw-group ${isGroupTapped ? "wbw-group-tapped" : ""} ${isGroupHovered ? "wbw-group-hovered" : ""} ${groupHClass}`}>
+                        <span key={group.key} className={`wbw-group ${isGroupHovered ? "wbw-group-hovered" : ""} ${groupHClass}`}>
                           <span className="wbw-words-row">
                             {group.words.map((w) => {
                               const isVH = highlightVerseKey !== null && w.verse_key === highlightVerseKey;
                               const isWH = highlightedWordCodes !== null && highlightedWordCodes.has(w.code);
                               const wordHClass = isWH ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : "";
-                              const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
                               const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(w.code);
                               return (
                                 <span
                                   key={w.code}
-                                  className={`mushaf-word ${isVH ? "highlighted" : ""} ${wordHClass} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
+                                  className={`mushaf-word ${isVH ? "highlighted" : ""} ${wordHClass} ${isWordHovered ? "word-hovered" : ""}`}
                                   style={{ fontFamily: `"${w.font}", serif` }}
-                                  onClick={(e) => {
-                                    if (w.verse_key) {
-                                      setWordPopover({ text: group.mlText!, verseKey: w.verse_key, el: e.currentTarget });
-                                      setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
-                                      clearTimeout(tappedTimeoutRef.current);
-                                      tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 1000);
-                                    }
-                                  }}
+                                  onClick={(e) => handleWordClick(e, group.mlText, w.code, w.text, w.verse_key)}
                                   onContextMenu={(e) => {
                                     e.preventDefault();
                                     if (w.verse_key) openAyahSheet(w.verse_key);
@@ -1191,24 +1185,14 @@ function MushafPageInner({
                     }
 
                     const mlText = w.verse_key ? findWbwMeaning(wbwData, w.verse_key, w.position) : null;
-                    const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(w.code);
                     const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(w.code);
 
                     return (
                       <span
                         key={w.code}
-                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
+                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${isWordHovered ? "word-hovered" : ""}`}
                         style={{ fontFamily: `"${w.font}", serif` }}
-                        onClick={(e) => {
-                          if (w.verse_key) {
-                            if (mlText) {
-                              setWordPopover({ text: mlText, verseKey: w.verse_key, el: e.currentTarget });
-                              setTappedWordCodes(findAdjacentGroup(flatWords, w.code, wbwData, wordByWordMap, showWordByWord));
-                              clearTimeout(tappedTimeoutRef.current);
-                              tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
-                            }
-                          }
-                        }}
+                        onClick={(e) => handleWordClick(e, mlText, w.code, w.text, w.verse_key)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           if (w.verse_key) openAyahSheet(w.verse_key);
@@ -1275,24 +1259,14 @@ function MushafPageInner({
                     const mlTooltip = wbwData && word.type === "word" && word.verse_key
                       ? findWbwMeaning(wbwData, word.verse_key, word.position)
                       : null;
-                    const isWordTapped = tappedWordCodes !== null && tappedWordCodes.has(word.code);
                     const isWordHovered = hoveredWordCodes !== null && hoveredWordCodes.has(word.code);
 
                     return (
                       <span
                         key={word.code}
-                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${isWordTapped ? "word-tapped" : ""} ${isWordHovered ? "word-hovered" : ""}`}
+                        className={`mushaf-word ${isVerseHighlighted ? "highlighted" : ""} ${isWordHighlighted ? (highlightWord?.bundle ? "word-highlighted-ml" : "word-highlighted") : ""} ${showWordByWord && mlText ? "wbw-enabled" : ""} ${isWordHovered ? "word-hovered" : ""}`}
                         style={{ fontFamily: `"${word.font}", serif` }}
-                        onClick={(e) => {
-                          if (word.verse_key) {
-                            if (mlTooltip) {
-                              setWordPopover({ text: mlTooltip, verseKey: word.verse_key, el: e.currentTarget });
-                              setTappedWordCodes(findAdjacentGroup(flatWords, word.code, wbwData, wordByWordMap, showWordByWord));
-                              clearTimeout(tappedTimeoutRef.current);
-                              tappedTimeoutRef.current = setTimeout(() => setTappedWordCodes(null), 800);
-                            }
-                          }
-                        }}
+                        onClick={(e) => handleWordClick(e, mlTooltip, word.code, word.text, word.verse_key)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           if (word.verse_key) openAyahSheet(word.verse_key);
@@ -1313,7 +1287,6 @@ function MushafPageInner({
       </MadaniFrame>
     </div>
 
-    {typeof document !== "undefined" && popoverEl ? createPortal(popoverEl, document.body) : null}
     {typeof document !== "undefined" && ayahSheetContent ? createPortal(ayahSheetContent, document.body) : null}
     {hoverTooltipPortal}
     </>

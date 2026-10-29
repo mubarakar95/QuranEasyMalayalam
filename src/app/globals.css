@@ -1276,98 +1276,6 @@ body {
   vertical-align: middle;
 }
 
-.word-popover {
-  position: fixed;
-  top: calc(2.85rem + env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100000;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  padding: 0.4rem 0.85rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  direction: ltr;
-  max-width: 90vw;
-  pointer-events: auto;
-  animation: popoverSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes popoverSlideDown {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-}
-
-.word-popover-verse {
-  font-size: 0.6rem;
-  color: var(--muted);
-  opacity: 0.6;
-}
-
-.word-popover-ml {
-  font-size: var(--ml-font-size, 1.05rem);
-  font-family: system-ui, -apple-system, sans-serif;
-  color: var(--foreground);
-  text-align: center;
-  line-height: 1.4;
-  font-weight: 500;
-  max-width: 70vw;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.word-popover-speak {
-  pointer-events: auto;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.2rem;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  flex-shrink: 0;
-  transition: color 0.15s, background-color 0.15s;
-}
-.word-popover-speak:hover {
-  color: var(--foreground);
-  background: rgba(128, 128, 128, 0.15);
-}
-
-.word-popover-close {
-  pointer-events: auto;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.2rem;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  flex-shrink: 0;
-  opacity: 0.7;
-  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
-}
-.word-popover-close:hover {
-  opacity: 1;
-  color: var(--foreground);
-  background: rgba(128, 128, 128, 0.15);
-}
 
 .mushaf-spread-ornament {
   display: none;
@@ -1586,10 +1494,7 @@ body {
     line-height: calc(2.2 * var(--lh-scale, 1));
   }
 
-  .word-popover {
-    top: calc(2.65rem + env(safe-area-inset-top, 0px));
-    max-width: 94vw;
-  }
+
 }
 
 .swipe-wbw-container {
