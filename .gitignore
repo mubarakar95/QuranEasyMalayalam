@@ -46,3 +46,9 @@ book-effect-reference/
 *.apk
 *.mov
 twa/
+
+# Telegram dev bot & uploads
+scripts/telegram-bot/
+scratch/telegram-uploads/
+scratch/
+
