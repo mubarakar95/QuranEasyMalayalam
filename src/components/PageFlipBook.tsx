@@ -104,11 +104,12 @@ export default function PageFlipBook({
       containerRef.current?.clientWidth ||
       (typeof window !== "undefined" ? window.innerWidth : 1000);
     const windowH = typeof window !== "undefined" ? window.innerHeight : 800;
-    const maxAvailableH = Math.max(380, Math.min(windowH - 120, 880));
+    // Allow scaling on all screen sizes including large monitors, 4K and iPad Pro
+    const maxAvailableH = Math.max(380, windowH - 100);
 
     if (isDouble) {
       const spreadRatio = 1.2734; // Authentic Madani Mushaf spread ratio (2 * 652 / 1024)
-      const maxSpreadW = Math.min(containerW - 24, 1150);
+      const maxSpreadW = Math.max(320, containerW - 24);
       let h = maxAvailableH;
       let w = Math.round(h * spreadRatio);
       if (w > maxSpreadW) {
@@ -118,7 +119,7 @@ export default function PageFlipBook({
       return { width: w, height: h };
     } else {
       const singleRatio = 0.6367; // Authentic Madani single page ratio (652 / 1024)
-      const maxSingleW = Math.min(containerW - 16, 580);
+      const maxSingleW = Math.max(280, containerW - 16);
       let h = maxAvailableH;
       let w = Math.round(h * singleRatio);
       if (w > maxSingleW) {

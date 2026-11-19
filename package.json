@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate-timestamps": "tsx scripts/generate-page-timestamps.ts"
+    "generate-timestamps": "tsx scripts/generate-page-timestamps.ts",
+    "telegram-bot": "node scripts/telegram-bot/bot.mjs"
 
   },
   "dependencies": {

@@ -770,7 +770,7 @@ body {
 
 .madani-slot-area .mushaf-line.mushaf-line-centered {
   justify-content: center !important;
-  gap: 1.2cqw !important;
+  gap: 0.6cqw !important;
 }
 
 .madani-slot-area .mushaf-line.mushaf-line-surah-header {
@@ -780,9 +780,9 @@ body {
   overflow: visible !important;
 }
 
-/* Words */
+/* Words - calibrated to authentic Madani Mushaf advance metrics (~16.25 em per line) */
 .madani-slot-area .mushaf-word {
-  font-size: calc(3.68cqw * var(--ar-font-scale, 1)) !important;
+  font-size: calc(4.82cqw * var(--ar-font-scale, 1)) !important;
   font-weight: 500 !important;
   color: #111827;
   white-space: nowrap;
@@ -2745,7 +2745,7 @@ body {
 }
 
 .madani-page-wrapper.is-single-page .madani-slot-area .mushaf-line.mushaf-line-centered {
-  gap: 1.5cqw !important;
+  gap: 0.6cqw !important;
 }
 
 .madani-page-wrapper.is-single-page .madani-header-bar {

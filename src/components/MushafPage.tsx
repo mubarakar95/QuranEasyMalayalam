@@ -1098,8 +1098,8 @@ function MushafPageInner({
             ? groupedLines.map((line) => {
               const isSurahHeader = line.words.some((w) => w.type === "surah_header");
               const isBismillah = line.words.some((w) => w.type === "bismillah");
-              const isShortEndLine = line.words.length <= 4 && line.words.some((w) => w.type === "end");
-              const isCentered = isSurahHeader || isBismillah || isShortEndLine;
+              const isShortEndLine = line.words.length <= 5 && line.words.some((w) => w.type === "end");
+              const isCentered = isSpecialPage || isSurahHeader || isBismillah || isShortEndLine;
 
               return (
                 <div
@@ -1211,8 +1211,8 @@ function MushafPageInner({
             : lines.map((line) => {
               const isSurahHeader = line.words.some((w) => w.type === "surah_header");
               const isBismillah = line.words.some((w) => w.type === "bismillah");
-              const isShortEndLine = line.words.length <= 4 && line.words.some((w) => w.type === "end");
-              const isCentered = isSurahHeader || isBismillah || isShortEndLine;
+              const isShortEndLine = line.words.length <= 5 && line.words.some((w) => w.type === "end");
+              const isCentered = isSpecialPage || isSurahHeader || isBismillah || isShortEndLine;
 
               return (
                 <div
